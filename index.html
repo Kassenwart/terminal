@@ -3,139 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TC Roßbach - Kasse</title>
+    <title>TC Roßbach - Terminal Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --tcr-blue: #0f2d52; --tcr-yellow: #d9ff00; }
-        body { background-color: var(--tcr-blue); font-family: sans-serif; color: #1e293b; }
+        body { background-color: var(--tcr-blue); font-family: sans-serif; color: #1e293b; overflow: hidden; }
         .active-scale:active { transform: scale(0.95); transition: 0.1s; }
+        .scroll-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="h-screen flex flex-col p-4 bg-slate-900">
+<body class="h-screen flex flex-col p-2 md:p-6 bg-slate-900">
 
 <script>
+    // Deine verifizierten Daten (ohne Punkt am Ende!)
     const supabaseClient = supabase.createClient("https://pincsrqnlikcalxofztq.supabase.co", "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q");
 </script>
 
-<div id="main-card" class="bg-white rounded-[40px] shadow-2xl flex-grow flex flex-col overflow-hidden max-w-2xl mx-auto w-full">
+<div id="app-container" class="bg-white rounded-[40px] shadow-2xl flex-grow flex flex-col overflow-hidden max-w-4xl mx-auto w-full">
     
-    <div class="p-6 border-b flex justify-between items-center bg-slate-50">
-        <img src="Vereins-Logo.png" class="h-12">
-        <div id="total-display" class="text-2xl font-black text-[#0f2d52]">0.00 €</div>
+    <div class="p-4 border-b flex justify-between items-center bg-slate-50">
+        <img src="Vereins-Logo.png" class="h-10 cursor-pointer" onclick="location.reload()">
+        <div id="header-title" class="font-black text-[#0f2d52] uppercase text-sm tracking-tighter">TC Roßbach Terminal</div>
     </div>
 
-    <div id="content" class="flex-grow overflow-y-auto p-6">
+    <div id="view" class="flex-grow overflow-y-auto p-4 md:p-8 scroll-hide">
         </div>
 </div>
 
 <script>
+let currentMember = null;
 let cart = [];
-let payer = null;
 
-// SCHRITT 1: Wer zahlt?
-function start() {
-    document.getElementById('content').innerHTML = `
-        <h2 class="text-2xl font-black mb-4 uppercase">Wer zahlt alles?</h2>
-        <input type="text" id="mSearch" oninput="search(this.value)" placeholder="Name oder Nr. eingeben..." class="w-full p-5 bg-slate-100 rounded-2xl text-xl font-bold mb-4 outline-none border-2 focus:border-[#0f2d52]">
-        <div id="res" class="space-y-2"></div>
+// --- VIEW: STARTBILDSCHIRM ---
+function showHome() {
+    currentMember = null;
+    cart = [];
+    document.getElementById('view').innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button onclick="viewMemberSearch('book')" class="active-scale p-8 bg-blue-50 border-2 border-blue-100 rounded-[30px] flex flex-col items-center group">
+                <span class="text-5xl mb-4 group-hover:scale-110 transition">🍺</span>
+                <span class="font-black text-[#0f2d52] uppercase text-xl">Getränke buchen</span>
+                <span class="text-[10px] text-slate-400 font-bold mt-2 uppercase">Auf Rechnung setzen</span>
+            </button>
+            <button onclick="viewMemberSearch('pay')" class="active-scale p-8 bg-green-50 border-2 border-green-100 rounded-[30px] flex flex-col items-center group">
+                <span class="text-5xl mb-4 group-hover:scale-110 transition">💰</span>
+                <span class="font-black text-green-800 uppercase text-xl">Abrechnung</span>
+                <span class="text-[10px] text-slate-400 font-bold mt-2 uppercase">Offene Beträge zahlen</span>
+            </button>
+            <button onclick="viewForm('update')" class="active-scale p-6 bg-slate-50 border rounded-3xl flex items-center gap-4">
+                <span class="text-3xl">📝</span>
+                <span class="font-bold text-xs uppercase text-left text-slate-600">Daten updaten</span>
+            </button>
+            <button onclick="viewForm('new')" class="active-scale p-6 bg-slate-50 border rounded-3xl flex items-center gap-4">
+                <span class="text-3xl">🎾</span>
+                <span class="font-bold text-xs uppercase text-left text-slate-600">Mitgliedsantrag</span>
+            </button>
+            <button onclick="viewForm('msg')" class="active-scale p-6 bg-slate-50 border rounded-3xl flex items-center gap-4 md:col-span-2">
+                <span class="text-3xl">📩</span>
+                <span class="font-bold text-xs uppercase text-left text-slate-600">Nachricht an Vorstand</span>
+            </button>
+        </div>
     `;
 }
 
-async function search(q) {
+// --- VIEW: MITGLIEDSSUCHE ---
+function viewMemberSearch(mode) {
+    document.getElementById('view').innerHTML = `
+        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
+        <h2 class="text-2xl font-black text-[#0f2d52] mb-2 uppercase italic">Wer bist du?</h2>
+        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name oder Nr. (z.B. 85)" class="w-full p-5 bg-slate-100 rounded-2xl text-xl font-bold mb-6 outline-none border-2 focus:border-[#0f2d52]">
+        <div id="search-results" class="space-y-2"></div>
+    `;
+    setTimeout(() => document.getElementById('mSearch').focus(), 100);
+}
+
+async function runSearch(q, mode) {
     if(q.length < 1) return;
-    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(4);
-    document.getElementById('res').innerHTML = data.map(m => `
-        <button onclick="setPayer('${m.id}', '${m.vorname}')" class="w-full text-left p-4 bg-slate-50 rounded-xl border-l-8 border-[#0f2d52] font-bold uppercase">${m.vorname} (${m.mitgliedsnummer})</button>
+    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(5);
+    document.getElementById('search-results').innerHTML = data.map(m => `
+        <button onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-white border-2 border-slate-100 rounded-2xl flex justify-between items-center active-scale">
+            <span class="font-black text-[#0f2d52] uppercase text-sm">${m.vorname} ${m.nachname_initial} (${m.mitgliedsnummer})</span>
+            <span class="text-blue-500 font-bold">➔</span>
+        </button>
     `).join('');
 }
 
-function setPayer(id, name) {
-    payer = {id, name};
-    showDrinks();
+function selectMember(m, mode) {
+    currentMember = m;
+    if(mode === 'book') viewBooking();
+    else viewSettlement();
 }
 
-// SCHRITT 2: Getränke wählen
-async function showDrinks() {
-    const { data } = await supabaseClient.from('produkte').select('*');
-    document.getElementById('content').innerHTML = `
-        <div class="mb-4 text-xs font-bold text-slate-400 uppercase">Konto: ${payer.name}</div>
+// --- VIEW: BUCHUNG (Punkt 1.1.1) ---
+async function viewBooking() {
+    const { data: prods } = await supabaseClient.from('produkte').select('*');
+    document.getElementById('view').innerHTML = `
+        <div class="flex justify-between items-start mb-6">
+            <h2 class="text-xl font-black uppercase text-[#0f2d52]">Getränke</h2>
+            <div class="text-right"><span class="block text-[10px] font-bold text-slate-400 uppercase">Mitglied</span><span class="font-black text-xs uppercase">${currentMember.vorname}</span></div>
+        </div>
         <div class="grid grid-cols-2 gap-3 mb-8">
-            ${data.map(p => `
-                <button onclick="add('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-3xl border flex flex-col items-center">
-                    <span class="text-4xl">${p.emoji}</span>
-                    <span class="font-bold text-[10px] uppercase mt-2">${p.name}</span>
+            ${prods.map(p => `
+                <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-[30px] border border-slate-100 flex flex-col items-center">
+                    <span class="text-4xl mb-1">${p.emoji}</span>
+                    <span class="font-bold text-[10px] uppercase text-slate-500">${p.name}</span>
                     <span class="font-black text-blue-900">${p.preis.toFixed(2)}€</span>
                 </button>
             `).join('')}
         </div>
-        <div id="cart-area" class="space-y-2 border-t pt-4"></div>
-        <button onclick="showFinal()" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black mt-6 uppercase shadow-xl">Zahlung & Nachricht</button>
+        <div id="cart-box" class="hidden border-t pt-4">
+            <div id="cart-items" class="space-y-2 mb-6"></div>
+            <button onclick="saveBooking()" class="w-full bg-[#0f2d52] text-white p-6 rounded-2xl font-black uppercase shadow-xl active-scale">Buchung bestätigen</button>
+        </div>
     `;
-    updateUI();
 }
 
-function add(name, preis, emoji) {
+function addToCart(name, preis, emoji) {
     const item = cart.find(i => i.name === name);
     if(item) item.count++; else cart.push({name, preis, emoji, count: 1});
-    updateUI();
+    updateCartUI();
 }
 
-function updateUI() {
-    const total = cart.reduce((s, i) => s + (i.preis * i.count), 0);
-    document.getElementById('total-display').innerText = total.toFixed(2) + " €";
-    const area = document.getElementById('cart-area');
-    if(area) area.innerHTML = cart.map((i, idx) => `
+function updateCartUI() {
+    const box = document.getElementById('cart-box');
+    box.classList.remove('hidden');
+    document.getElementById('cart-items').innerHTML = cart.map((i, idx) => `
         <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl">
-            <span class="font-bold text-xs">${i.emoji} ${i.name}</span>
-            <div class="flex items-center gap-3">
-                <button onclick="change(${idx},-1)" class="w-8 h-8 bg-white rounded-full shadow text-xl">-</button>
-                <span class="font-black">${i.count}</span>
-                <button onclick="change(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full shadow text-xl">+</button>
+            <span class="font-bold text-xs uppercase">${i.emoji} ${i.name}</span>
+            <div class="flex items-center gap-4">
+                <button onclick="changeQty(${idx},-1)" class="w-8 h-8 bg-white rounded-full shadow font-bold">-</button>
+                <span class="font-black text-sm">${i.count}</span>
+                <button onclick="changeQty(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full shadow font-bold text-white">+</button>
             </div>
         </div>
     `).join('');
 }
 
-function change(idx, d) {
+function changeQty(idx, d) {
     cart[idx].count += d;
     if(cart[idx].count <= 0) cart.splice(idx,1);
-    updateUI();
+    updateCartUI();
 }
 
-// SCHRITT 3: Abschluss & Nachricht
-function showFinal() {
-    document.getElementById('content').innerHTML = `
-        <h2 class="text-xl font-black mb-6 uppercase">Abschluss</h2>
-        <div class="mb-6">
-            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Notiz für Kassenwart (optional):</label>
-            <textarea id="note" placeholder="z.B. Runde für Tisch 4 / Mit Tom und Leon..." class="w-full p-4 bg-slate-100 rounded-2xl border-none outline-none h-24 font-bold"></textarea>
+async function saveBooking() {
+    for(const i of cart) {
+        for(let n=0; n<i.count; n++) {
+            await supabaseClient.from('buchungen').insert([{ mitglied_id: currentMember.id, artikel: i.name, preis: i.preis, bezahlt: false }]);
+        }
+    }
+    showHome(); // Erfolgsmeldung hier optional einbauen
+}
+
+// --- VIEW: ABRECHNUNG (Punkt 2) ---
+async function viewSettlement() {
+    const { data: open } = await supabaseClient.from('buchungen').select('*').eq('mitglied_id', currentMember.id).eq('bezahlt', false);
+    const sum = open.reduce((s, i) => s + i.preis, 0);
+    
+    document.getElementById('view').innerHTML = `
+        <h2 class="text-xl font-black uppercase text-[#0f2d52] mb-6">Offene Getränke</h2>
+        <div class="bg-slate-50 rounded-3xl p-6 mb-6">
+            <div class="flex justify-between items-end border-b pb-4 mb-4">
+                <span class="text-xs font-bold text-slate-400 uppercase">Summe für ${currentMember.vorname}</span>
+                <span class="text-3xl font-black text-[#0f2d52]">${sum.toFixed(2)} €</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto pr-2 scroll-hide">
+                ${open.map(i => `<div class="flex justify-between text-[10px] font-bold uppercase text-slate-500"><span>${i.artikel}</span><span>${i.preis.toFixed(2)}€</span></div>`).join('')}
+            </div>
         </div>
+        <h3 class="font-black uppercase text-xs mb-4 text-center text-slate-400">Jetzt bezahlen per:</h3>
         <div class="grid grid-cols-1 gap-3">
-            <button onclick="finish('Bar')" class="p-4 bg-green-50 text-green-700 rounded-2xl font-black uppercase border-2 border-green-200">💵 Bar / Kasse</button>
-            <button onclick="finish('PayPal')" class="p-4 bg-blue-50 text-blue-700 rounded-2xl font-black uppercase border-2 border-blue-200">📱 PayPal</button>
+            <button onclick="payAll('Bar')" class="p-5 bg-green-50 text-green-700 rounded-2xl font-black uppercase border-2 border-green-200 active-scale">💵 Bar in Kasse</button>
+            <button onclick="payAll('PayPal')" class="p-5 bg-blue-50 text-blue-700 rounded-2xl font-black uppercase border-2 border-blue-200 active-scale">📱 PayPal</button>
+            <button onclick="payAll('Bank')" class="p-5 bg-slate-50 text-slate-700 rounded-2xl font-black uppercase border-2 border-slate-200 active-scale">🏦 Überweisung</button>
         </div>
     `;
 }
 
-async function finish(art) {
-    const note = document.getElementById('note').value;
-    for(const i of cart) {
-        for(let n=0; n<i.count; n++) {
-            await supabaseClient.from('buchungen').insert([{
-                mitglied_id: payer.id,
-                artikel: i.name,
-                preis: i.preis,
-                zahlungsart: art,
-                notiz: note // DIE NACHRICHT
-            }]);
-        }
-    }
-    document.getElementById('content').innerHTML = `<div class="text-center p-10 font-black text-green-600 text-2xl uppercase">✅ Gebucht!<br>Danke.</div>`;
-    setTimeout(() => location.reload(), 2000);
+async function payAll(art) {
+    await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).eq('mitglied_id', currentMember.id).eq('bezahlt', false);
+    showHome();
 }
 
-start();
+// --- VIEW: FORMULARE (Punkt 3, 4, 5) ---
+function viewForm(type) {
+    let title = "Formular";
+    if(type === 'update') title = "Daten updaten";
+    if(type === 'new') title = "Mitgliedsantrag";
+    if(type === 'msg') title = "Nachricht an Vorstand";
+
+    document.getElementById('view').innerHTML = `
+        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
+        <h2 class="text-2xl font-black text-[#0f2d52] mb-6 uppercase italic">${title}</h2>
+        <div class="space-y-4">
+            <input type="text" placeholder="Dein Name" class="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none">
+            <textarea placeholder="Deine Mitteilung..." class="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none h-32"></textarea>
+            <button onclick="showHome()" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black uppercase">Senden</button>
+        </div>
+    `;
+}
+
+// Initialisierung
+showHome();
 </script>
 </body>
 </html>
