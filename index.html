@@ -168,4 +168,35 @@ async function saveBooking() {
 async function viewSettlement() {
     const ids = settlementMembers.map(m => m.id);
     const { data: open } = await supabaseClient.from('buchungen').select('*').in('mitglied_id', ids).eq('bezahlt', false);
-    const sum = open.reduce((s, i) =>
+    const sum = open.reduce((s, i) => s + i.preis, 0);
+    
+    document.getElementById('view').innerHTML = `
+        <h2 class="font-black uppercase text-[#0f2d52] mb-4">Sammel-Abrechnung</h2>
+        <div class="bg-blue-900 text-white p-6 rounded-3xl mb-4 text-center shadow-xl">
+            <div class="text-[10px] font-bold opacity-60 uppercase mb-1">Gesamtsumme für ${settlementMembers.length} Konten</div>
+            <div class="text-4xl font-black">${sum.toFixed(2)} €</div>
+        </div>
+        <div class="space-y-1 mb-6 max-h-40 overflow-y-auto pr-2">
+            ${open.map(i => `<div class="flex justify-between text-[10px] font-bold text-slate-400 border-b pb-1 uppercase"><span>${i.artikel}</span><span>${i.preis.toFixed(2)} €</span></div>`).join('')}
+        </div>
+        <div class="grid grid-cols-1 gap-2">
+            <button onclick="payAll('Bar')" class="p-4 bg-green-50 text-green-700 rounded-xl font-black uppercase border border-green-200 shadow-sm active-scale">💵 Bar in Kasse</button>
+            <button onclick="payAll('PayPal')" class="p-4 bg-blue-50 text-blue-700 rounded-xl font-black uppercase border border-blue-200 shadow-sm active-scale">📱 PayPal</button>
+            <button onclick="payAll('Bank')" class="p-4 bg-slate-100 rounded-xl font-black uppercase border shadow-sm active-scale">🏦 Überweisung</button>
+        </div>
+    `;
+}
+
+async function payAll(art) {
+    const ids = settlementMembers.map(m => m.id);
+    await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).in('mitglied_id', ids).eq('bezahlt', false);
+    showHome();
+}
+
+// (Stammdaten, Neuantrag und Message bleiben identisch wie im letzten Code)
+// Hier die Funktionen viewFormUpdate, viewFormNew, viewMessage und submitAnfrage einfügen...
+
+showHome();
+</script>
+</body>
+</html>
