@@ -8,126 +8,71 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --tcr-blue-dark: #0f2d52; --tcr-blue-light: #1d4e89; --tcr-yellow: #d9ff00; }
-        body { user-select: none; touch-action: manipulation; background-color: var(--tcr-blue-dark); color: #1e293b; }
+        body { background-color: var(--tcr-blue-dark); color: white; font-family: sans-serif; }
         .bg-tcr-blue { background-color: var(--tcr-blue-light); }
-        .text-tcr-blue { color: var(--tcr-blue-light); }
-        .active-scale:active { transform: scale(0.96); transition: 0.1s; }
-        .bg-gradient-main { background: radial-gradient(circle at center, #1e4b85 0%, #0a1f3d 100%); }
     </style>
 </head>
-<body class="h-screen flex flex-col font-sans overflow-hidden bg-gradient-main">
+<body class="h-screen flex flex-col items-center justify-center p-6">
 
-<script>
-    const SB_URL = "https://pincsrqnlikcalxofztq.supabase.co";
-    const SB_KEY = "sb_publishable_AiIuTquIjZaBGvZnki6OpQ";
-    const supabase = supabase.createClient(SB_URL, SB_KEY);
-</script>
+    <div id="status-dot" class="fixed top-4 right-4 w-4 h-4 rounded-full bg-gray-500 border border-white shadow-lg"></div>
 
-<div id="screen-home" class="flex-grow flex flex-col items-center justify-center p-6 text-white text-center">
-    <div class="mb-10 bg-white p-8 rounded-[40px] shadow-2xl border-b-8 border-tcr-yellow">
-        <img src="Vereins-Logo.png" alt="Logo" class="h-44 mx-auto">
-    </div>
-    <h1 class="text-2xl font-black uppercase mb-10 tracking-widest">Clubhaus Terminal</h1>
-    <div class="w-full max-w-md space-y-5">
-        <button onclick="openDrinks()" class="active-scale w-full bg-white text-tcr-blue p-6 rounded-3xl shadow-2xl flex items-center justify-between border-l-8 border-tcr-yellow text-left font-bold uppercase">
-            <span>🍺 Getränke buchen</span>
-            <span>→</span>
+    <div id="main-ui" class="text-center w-full max-w-md">
+        <div class="bg-white p-8 rounded-[40px] mb-8 shadow-2xl">
+            <img src="Vereins-Logo.png" class="h-32 mx-auto">
+        </div>
+        
+        <div id="conn-msg" class="mb-4 text-xs font-bold uppercase tracking-widest opacity-50 text-yellow-400">Prüfe Verbindung...</div>
+
+        <button onclick="openDrinks()" id="btn-start" disabled class="w-full bg-white text-slate-900 p-8 rounded-3xl font-black text-2xl shadow-xl opacity-30">
+            GETRÄNKE BUCHEN
         </button>
+        
+        <p id="error-log" class="mt-6 text-red-400 text-sm font-mono hidden bg-black/30 p-4 rounded-xl text-left"></p>
     </div>
-</div>
-
-<div id="screen-sub" class="hidden flex-grow flex flex-col p-4">
-    <button onclick="location.reload()" class="mb-4 bg-white/20 text-white px-6 py-2 rounded-xl self-start font-bold">← ZURÜCK</button>
-    <div id="sub-content" class="bg-white rounded-[40px] shadow-2xl p-8 flex-grow overflow-y-auto"></div>
-</div>
 
 <script>
-let selectedMemberId = null;
-let selectedMemberName = "";
+    // BITTE HIER DEINE ECHTEN DATEN AUS SUPABASE EINTRAGEN
+    const SB_URL = "DEINE_PROJEKT_URL_HIER"; 
+    const SB_KEY = "DEIN_ANON_KEY_HIER";
 
-function openDrinks() {
-    document.getElementById('screen-home').classList.add('hidden');
-    document.getElementById('screen-sub').classList.remove('hidden');
-    document.getElementById('sub-content').innerHTML = `
-        <h2 class="text-2xl font-black text-tcr-blue mb-4 uppercase">Wer bist du?</h2>
-        <input type="text" id="mSearch" oninput="searchM(this.value)" placeholder="Nummer (z.B. 85)" class="w-full p-6 bg-slate-100 border-2 rounded-2xl text-2xl font-bold mb-4 outline-none focus:border-tcr-blue">
-        <div id="results" class="space-y-3"></div>
-    `;
-    setTimeout(() => document.getElementById('mSearch').focus(), 200);
-}
+    const supabase = supabase.createClient(SB_URL, SB_KEY);
+    const statusDot = document.getElementById('status-dot');
+    const connMsg = document.getElementById('conn-msg');
+    const btnStart = document.getElementById('btn-start');
+    const errorLog = document.getElementById('error-log');
 
-async function searchM(q) {
-    const resDiv = document.getElementById('results');
-    if(q.trim().length < 1) { resDiv.innerHTML = ''; return; }
+    // DER TEST-CHECK
+    async function checkConnection() {
+        try {
+            // Wir versuchen einfach mal, die Produkte zu zählen
+            const { data, error } = await supabase.from('produkte').select('count', { count: 'exact' });
+            
+            if (error) throw error;
 
-    // Wir suchen in der Text-Spalte 'mitgliedsnummer'
-    const { data, error } = await supabase
-        .from('mitglieder')
-        .select('*')
-        .or(`mitgliedsnummer.eq.${q.trim()},vorname.ilike.%${q.trim()}%`)
-        .limit(5);
+            // ERFOLG: Ampel auf Grün
+            statusDot.className = "fixed top-4 right-4 w-4 h-4 rounded-full bg-green-500 border border-white shadow-lg";
+            connMsg.innerText = "Verbindung OK ✅";
+            connMsg.className = "mb-4 text-xs font-bold uppercase tracking-widest text-green-400";
+            btnStart.disabled = false;
+            btnStart.className = "active:scale-95 w-full bg-white text-slate-900 p-8 rounded-3xl font-black text-2xl shadow-xl transition-all";
 
-    if(error) {
-        resDiv.innerHTML = `<p class="text-red-500 font-bold p-4 bg-red-50 rounded-xl">Fehler: ${error.message}</p>`;
-        return;
+        } catch (err) {
+            // FEHLER: Ampel auf Rot
+            statusDot.className = "fixed top-4 right-4 w-4 h-4 rounded-full bg-red-500 border border-white shadow-lg";
+            connMsg.innerText = "Verbindung Fehlgeschlagen ❌";
+            connMsg.className = "mb-4 text-xs font-bold uppercase tracking-widest text-red-500";
+            errorLog.innerText = "Fehler-Details: " + err.message;
+            errorLog.classList.remove('hidden');
+        }
     }
 
-    if(data.length === 0) {
-        resDiv.innerHTML = `<p class="text-slate-400 p-4 text-center font-bold">Nummer ${q} nicht gefunden.</p>`;
-        return;
+    // Startet den Test sofort beim Laden
+    checkConnection();
+
+    function openDrinks() {
+        // Hier kommt dann der Rest deines Codes rein, wenn der Test grün ist
+        alert("Verbindung steht! Du kannst jetzt den Rest des Codes einfügen.");
     }
-
-    let html = '';
-    data.forEach(m => {
-        html += `
-            <button onclick="selectM('${m.id}', '${m.vorname} ${m.nachname_initial}')" class="active-scale w-full text-left bg-slate-50 p-5 rounded-2xl border-l-8 border-tcr-blue shadow-sm flex justify-between items-center">
-                <div class="font-bold text-tcr-blue uppercase">
-                    <span class="text-xs text-slate-400 block font-normal">Nr. ${m.mitgliedsnummer}</span>
-                    ${m.vorname} ${m.nachname_initial}
-                </div>
-                <span class="bg-tcr-blue text-white px-4 py-2 rounded-lg text-xs font-bold uppercase">Wählen</span>
-            </button>`;
-    });
-    resDiv.innerHTML = html;
-}
-
-async function selectM(id, name) {
-    selectedMemberId = id;
-    selectedMemberName = name;
-    document.getElementById('sub-content').innerHTML = `
-        <h2 class="text-2xl font-black text-tcr-blue mb-4 uppercase text-center">Getränk wählen</h2>
-        <p class="text-center mb-6 font-bold text-slate-400 italic">Konto: ${name}</p>
-        <div id="pList" class="grid grid-cols-2 gap-4">Lade Getränke...</div>
-    `;
-    const { data } = await supabase.from('produkte').select('*');
-    let html = '';
-    data.forEach(p => {
-        html += `
-            <button onclick="book('${p.name}', ${p.preis})" class="active-scale bg-slate-50 p-6 rounded-[30px] flex flex-col items-center border-2 border-slate-100 shadow-lg">
-                <span class="text-5xl mb-2">${p.emoji || '🥤'}</span>
-                <span class="font-bold text-sm uppercase text-slate-600">${p.name}</span>
-                <span class="bg-tcr-blue text-white px-3 py-1 rounded-full text-sm mt-2">${Number(p.preis).toFixed(2)}€</span>
-            </button>`;
-    });
-    document.getElementById('pList').innerHTML = html;
-}
-
-async function book(item, price) {
-    const { error } = await supabase.from('buchungen').insert([{ 
-        mitglied_id: selectedMemberId, 
-        gast_name: selectedMemberId ? null : selectedMemberName,
-        artikel: item, preis: price 
-    }]);
-    if(!error) { 
-        document.getElementById('sub-content').innerHTML = `
-            <div class="h-full flex flex-col items-center justify-center text-center">
-                <span class="text-8xl mb-4">✅</span>
-                <h2 class="text-3xl font-black text-tcr-blue uppercase">Gebucht!</h2>
-                <p class="text-slate-500 mt-2">${item} für ${selectedMemberName}</p>
-            </div>`;
-        setTimeout(() => location.reload(), 2000);
-    }
-}
 </script>
 </body>
 </html>
