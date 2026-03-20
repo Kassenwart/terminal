@@ -3,175 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TC Roßbach - Pro Kasse</title>
+    <title>TC Roßbach - Kasse</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --tcr-blue: #0f2d52; --tcr-light: #1d4e89; --tcr-yellow: #d9ff00; }
-        body { user-select: none; touch-action: manipulation; background-color: var(--tcr-blue); color: #1e293b; font-family: sans-serif; }
-        .active-scale:active { transform: scale(0.96); transition: 0.1s; }
-        .bg-gradient-main { background: radial-gradient(circle at center, #1e4b85 0%, #0a1f3d 100%); }
+        :root { --tcr-blue: #0f2d52; --tcr-yellow: #d9ff00; }
+        body { background-color: var(--tcr-blue); font-family: sans-serif; color: #1e293b; }
+        .active-scale:active { transform: scale(0.95); transition: 0.1s; }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden bg-gradient-main text-white">
+<body class="h-screen flex flex-col p-4 bg-slate-900">
 
 <script>
-    const SB_URL = "https://pincsrqnlikcalxofztq.supabase.co";
-    const SB_KEY = "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q";
-    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+    const supabaseClient = supabase.createClient("https://pincsrqnlikcalxofztq.supabase.co", "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q");
 </script>
 
-<div id="screen-home" class="flex-grow flex flex-col items-center justify-center p-6 text-center">
-    <div class="mb-8 bg-white p-6 rounded-[40px] shadow-2xl border-b-8 border-tcr-yellow">
-        <img src="Vereins-Logo.png" class="h-32 mx-auto">
+<div id="main-card" class="bg-white rounded-[40px] shadow-2xl flex-grow flex flex-col overflow-hidden max-w-2xl mx-auto w-full">
+    
+    <div class="p-6 border-b flex justify-between items-center bg-slate-50">
+        <img src="Vereins-Logo.png" class="h-12">
+        <div id="total-display" class="text-2xl font-black text-[#0f2d52]">0.00 €</div>
     </div>
-    <div class="w-full max-w-md space-y-4">
-        <button onclick="openDrinks()" class="active-scale w-full bg-white text-[#0f2d52] p-8 rounded-3xl shadow-2xl flex items-center justify-between border-l-8 border-tcr-yellow">
-            <span class="text-2xl font-black uppercase">🛒 Neue Buchung</span>
-            <span class="text-2xl font-bold">→</span>
-        </button>
-        <div class="grid grid-cols-2 gap-4">
-            <button onclick="alert('Admin-Login folgt')" class="active-scale bg-white/10 border border-white/20 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest">Tagesabschluss</button>
-            <button onclick="location.reload()" class="active-scale bg-white/10 border border-white/20 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest">🔄 Refresh</button>
-        </div>
-    </div>
-</div>
 
-<div id="screen-sub" class="hidden flex-grow flex flex-col p-4">
-    <button onclick="location.reload()" class="mb-4 bg-white/10 text-white px-6 py-2 rounded-xl self-start font-bold uppercase text-[10px] border border-white/20">← Abbrechen</button>
-    <div id="sub-content" class="bg-white rounded-[40px] shadow-2xl p-6 flex-grow overflow-y-auto text-slate-800"></div>
+    <div id="content" class="flex-grow overflow-y-auto p-6">
+        </div>
 </div>
 
 <script>
-let selectedMemberId = null;
-let selectedMemberName = "";
 let cart = [];
+let payer = null;
 
-function openDrinks() {
-    document.getElementById('screen-home').classList.add('hidden');
-    document.getElementById('screen-sub').classList.remove('hidden');
-    renderMemberSearch();
-}
-
-function renderMemberSearch() {
-    document.getElementById('sub-content').innerHTML = `
-        <h2 class="text-2xl font-black text-[#0f2d52] mb-1 uppercase">Wer zahlt?</h2>
-        <input type="text" id="mSearch" oninput="searchM(this.value)" placeholder="Name oder Nummer..." class="w-full p-5 bg-slate-100 border-2 rounded-2xl text-xl font-bold mb-4 outline-none">
-        <div id="results" class="space-y-2"></div>
+// SCHRITT 1: Wer zahlt?
+function start() {
+    document.getElementById('content').innerHTML = `
+        <h2 class="text-2xl font-black mb-4 uppercase">Wer zahlt alles?</h2>
+        <input type="text" id="mSearch" oninput="search(this.value)" placeholder="Name oder Nr. eingeben..." class="w-full p-5 bg-slate-100 rounded-2xl text-xl font-bold mb-4 outline-none border-2 focus:border-[#0f2d52]">
+        <div id="res" class="space-y-2"></div>
     `;
-    setTimeout(() => document.getElementById('mSearch').focus(), 200);
 }
 
-async function searchM(q) {
-    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(5);
-    let html = '';
-    data?.forEach(m => {
-        html += `<button onclick="selectM('${m.id}', '${m.vorname} ${m.nachname_initial}')" class="active-scale w-full text-left bg-slate-50 p-4 rounded-xl border-l-8 border-[#0f2d52] flex justify-between items-center font-bold uppercase text-sm">${m.vorname} (${m.mitgliedsnummer}) <span>➔</span></button>`;
-    });
-    document.getElementById('results').innerHTML = html;
+async function search(q) {
+    if(q.length < 1) return;
+    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(4);
+    document.getElementById('res').innerHTML = data.map(m => `
+        <button onclick="setPayer('${m.id}', '${m.vorname}')" class="w-full text-left p-4 bg-slate-50 rounded-xl border-l-8 border-[#0f2d52] font-bold uppercase">${m.vorname} (${m.mitgliedsnummer})</button>
+    `).join('');
 }
 
-function selectM(id, name) {
-    selectedMemberId = id;
-    selectedMemberName = name;
-    renderDrinkMenu();
+function setPayer(id, name) {
+    payer = {id, name};
+    showDrinks();
 }
 
-async function renderDrinkMenu() {
-    const total = cart.reduce((sum, item) => sum + (item.preis * item.count), 0);
-    document.getElementById('sub-content').innerHTML = `
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-black text-[#0f2d52] uppercase">Getränke</h2>
-            <div class="bg-green-500 text-white px-4 py-2 rounded-xl font-black shadow-lg">${total.toFixed(2)} €</div>
-        </div>
-        <div id="pList" class="grid grid-cols-2 gap-3 mb-6">Lade...</div>
-        <div id="cart-list" class="space-y-2 mb-6 border-t pt-4"></div>
-        <button id="btn-next" onclick="renderPayment()" class="hidden w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black text-xl active-scale uppercase">Weiter zur Zahlung</button>
-    `;
-    
+// SCHRITT 2: Getränke wählen
+async function showDrinks() {
     const { data } = await supabaseClient.from('produkte').select('*');
-    let html = '';
-    data?.forEach(p => {
-        html += `<button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-3xl flex flex-col items-center border border-slate-100 shadow-sm"><span class="text-4xl">${p.emoji}</span><span class="text-[10px] font-bold text-slate-500 mt-1 uppercase text-center">${p.name}</span><span class="font-black text-sm">${p.preis.toFixed(2)}€</span></button>`;
-    });
-    document.getElementById('pList').innerHTML = html;
-    updateCartUI();
+    document.getElementById('content').innerHTML = `
+        <div class="mb-4 text-xs font-bold text-slate-400 uppercase">Konto: ${payer.name}</div>
+        <div class="grid grid-cols-2 gap-3 mb-8">
+            ${data.map(p => `
+                <button onclick="add('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-3xl border flex flex-col items-center">
+                    <span class="text-4xl">${p.emoji}</span>
+                    <span class="font-bold text-[10px] uppercase mt-2">${p.name}</span>
+                    <span class="font-black text-blue-900">${p.preis.toFixed(2)}€</span>
+                </button>
+            `).join('')}
+        </div>
+        <div id="cart-area" class="space-y-2 border-t pt-4"></div>
+        <button onclick="showFinal()" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black mt-6 uppercase shadow-xl">Zahlung & Nachricht</button>
+    `;
+    updateUI();
 }
 
-function addToCart(name, preis, emoji) {
-    const existing = cart.find(i => i.name === name);
-    if(existing) existing.count++; else cart.push({name, preis, emoji, count: 1});
-    updateCartUI();
+function add(name, preis, emoji) {
+    const item = cart.find(i => i.name === name);
+    if(item) item.count++; else cart.push({name, preis, emoji, count: 1});
+    updateUI();
 }
 
-function updateCartUI() {
-    const total = cart.reduce((sum, item) => sum + (item.preis * item.count), 0);
-    const list = document.getElementById('cart-list');
-    const btn = document.getElementById('btn-next');
-    
-    if(cart.length > 0) { list.classList.remove('hidden'); btn.classList.remove('hidden'); }
-    
-    list.innerHTML = cart.map((item, idx) => `
-        <div class="flex items-center justify-between bg-slate-100 p-3 rounded-xl">
-            <span class="font-bold text-xs uppercase">${item.emoji} ${item.name}</span>
-            <div class="flex items-center gap-4">
-                <button onclick="changeC(${idx},-1)" class="w-8 h-8 bg-white rounded-full shadow font-bold">-</button>
-                <span class="font-black text-lg">${item.count}</span>
-                <button onclick="changeC(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full shadow font-bold">+</button>
+function updateUI() {
+    const total = cart.reduce((s, i) => s + (i.preis * i.count), 0);
+    document.getElementById('total-display').innerText = total.toFixed(2) + " €";
+    const area = document.getElementById('cart-area');
+    if(area) area.innerHTML = cart.map((i, idx) => `
+        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl">
+            <span class="font-bold text-xs">${i.emoji} ${i.name}</span>
+            <div class="flex items-center gap-3">
+                <button onclick="change(${idx},-1)" class="w-8 h-8 bg-white rounded-full shadow text-xl">-</button>
+                <span class="font-black">${i.count}</span>
+                <button onclick="change(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full shadow text-xl">+</button>
             </div>
         </div>
     `).join('');
-    document.querySelector('.bg-green-500').innerText = total.toFixed(2) + " €";
 }
 
-function changeC(idx, d) {
+function change(idx, d) {
     cart[idx].count += d;
     if(cart[idx].count <= 0) cart.splice(idx,1);
-    updateCartUI();
+    updateUI();
 }
 
-function renderPayment() {
-    const total = cart.reduce((sum, item) => sum + (item.preis * item.count), 0);
-    document.getElementById('sub-content').innerHTML = `
-        <h2 class="text-2xl font-black text-[#0f2d52] mb-1 uppercase text-center tracking-tighter">Zahlung wählen</h2>
-        <p class="text-center text-slate-400 font-bold mb-8 uppercase text-[10px]">Gesamtsumme: ${total.toFixed(2)} €</p>
-        
-        <div class="space-y-4">
-            <button onclick="finish('Bar/Kasse')" class="w-full p-6 bg-slate-50 rounded-3xl border-2 border-slate-100 flex items-center gap-6 active-scale">
-                <span class="text-4xl">💵</span><div class="text-left"><span class="block font-black text-[#0f2d52]">BARKASSE</span><span class="text-[10px] font-bold text-slate-400 uppercase">In Clubhaus-Kasse geworfen</span></div>
-            </button>
-            <button onclick="finish('PayPal')" class="w-full p-6 bg-blue-50 rounded-3xl border-2 border-blue-100 flex items-center gap-6 active-scale text-blue-800">
-                <span class="text-4xl">📱</span><div class="text-left"><span class="block font-black">PAYPAL</span><span class="text-[10px] font-bold uppercase opacity-60">Direkt per Handy senden</span></div>
-            </button>
-            <button onclick="finish('Überweisung')" class="w-full p-6 bg-green-50 rounded-3xl border-2 border-green-100 flex items-center gap-6 active-scale text-green-800">
-                <span class="text-4xl">🏦</span><div class="text-left"><span class="block font-black">ÜBERWEISUNG</span><span class="text-[10px] font-bold uppercase opacity-60">An das Vereinskonto</span></div>
-            </button>
+// SCHRITT 3: Abschluss & Nachricht
+function showFinal() {
+    document.getElementById('content').innerHTML = `
+        <h2 class="text-xl font-black mb-6 uppercase">Abschluss</h2>
+        <div class="mb-6">
+            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Notiz für Kassenwart (optional):</label>
+            <textarea id="note" placeholder="z.B. Runde für Tisch 4 / Mit Tom und Leon..." class="w-full p-4 bg-slate-100 rounded-2xl border-none outline-none h-24 font-bold"></textarea>
+        </div>
+        <div class="grid grid-cols-1 gap-3">
+            <button onclick="finish('Bar')" class="p-4 bg-green-50 text-green-700 rounded-2xl font-black uppercase border-2 border-green-200">💵 Bar / Kasse</button>
+            <button onclick="finish('PayPal')" class="p-4 bg-blue-50 text-blue-700 rounded-2xl font-black uppercase border-2 border-blue-200">📱 PayPal</button>
         </div>
     `;
 }
 
 async function finish(art) {
-    document.getElementById('sub-content').innerHTML = `<div class="h-full flex flex-col items-center justify-center font-black uppercase animate-pulse">Buchung wird gespeichert...</div>`;
-    
-    for (const item of cart) {
-        for (let i = 0; i < item.count; i++) {
-            await supabaseClient.from('buchungen').insert([{ 
-                mitglied_id: selectedMemberId, 
-                artikel: item.name, 
-                preis: item.preis,
-                zahlungsart: art // HIER WIRD DIE ZAHLUNGSART GESPEICHERT
+    const note = document.getElementById('note').value;
+    for(const i of cart) {
+        for(let n=0; n<i.count; n++) {
+            await supabaseClient.from('buchungen').insert([{
+                mitglied_id: payer.id,
+                artikel: i.name,
+                preis: i.preis,
+                zahlungsart: art,
+                notiz: note // DIE NACHRICHT
             }]);
         }
     }
-
-    document.getElementById('sub-content').innerHTML = `
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="bg-green-100 text-green-600 w-24 h-24 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">✓</div>
-            <h2 class="text-4xl font-black text-[#0f2d52] uppercase">Fertig!</h2>
-            <p class="text-slate-400 mt-2 font-bold uppercase text-[10px] tracking-widest">Vielen Dank für deine Zahlung per ${art}</p>
-        </div>`;
-    setTimeout(() => location.reload(), 3000);
+    document.getElementById('content').innerHTML = `<div class="text-center p-10 font-black text-green-600 text-2xl uppercase">✅ Gebucht!<br>Danke.</div>`;
+    setTimeout(() => location.reload(), 2000);
 }
+
+start();
 </script>
 </body>
 </html>
