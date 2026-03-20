@@ -4,99 +4,115 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TC Roßbach - Terminal Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --tcr-blue: #0f2d52; --tcr-yellow: #d9ff00; }
-        body { background-color: var(--tcr-blue); font-family: sans-serif; color: #1e293b; }
+        :root { --tcr-blue: #0f2d52; }
+        body { background-color: #0f172a; font-family: sans-serif; color: #1e293b; }
         .active-scale:active { transform: scale(0.98); transition: 0.1s; }
-        .input-field { width: 100%; padding: 0.8rem; background: #f8fafc; border-radius: 0.75rem; font-weight: bold; border: 2px solid #e2e8f0; outline: none; transition: 0.2s; }
-        .input-field:focus { border-color: var(--tcr-blue); background: white; }
-        .label-style { display: block; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 0.2rem; margin-left: 0.4rem; }
+        .input-field { width: 100%; padding: 0.8rem; background: #f8fafc; border-radius: 0.75rem; font-weight: bold; border: 2px solid #e2e8f0; outline: none; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col p-4 bg-slate-900 items-center">
+<body class="min-h-screen flex flex-col p-4 items-center">
 
 <script>
-    // Initialisierung mit deinen Daten
     const supabaseClient = supabase.createClient("https://pincsrqnlikcalxofztq.supabase.co", "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q");
 </script>
 
-<div id="app-container" class="bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden max-w-xl w-full transition-all duration-300 min-h-[600px]">
+<div id="app-container" class="bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden max-w-xl w-full min-h-[700px]">
     
     <div class="p-6 flex flex-col items-center bg-slate-50 border-b">
         <img src="Vereins-Logo.png" class="h-20 mb-2 cursor-pointer" onclick="location.reload()">
-        <div class="font-black text-[#0f2d52] uppercase text-[10px] tracking-[0.3em]">TC Roßbach 1974</div>
+        <div class="font-black text-[#0f2d52] uppercase text-[10px] tracking-[0.3em]">TC Roßbach Terminal</div>
     </div>
 
-    <div id="view" class="flex-grow overflow-y-auto p-6">
-        </div>
+    <div id="view" class="flex-grow overflow-y-auto p-6"></div>
 </div>
 
 <script>
-let currentMember = null;
 let cart = [];
+let settlementMembers = []; // Liste für Mehrfachauswahl beim Bezahlen
 
 function showHome() {
-    currentMember = null;
+    settlementMembers = [];
     cart = [];
     document.getElementById('view').innerHTML = `
         <div class="flex flex-col gap-3">
-            <button onclick="viewMemberSearch('book')" class="active-scale p-5 bg-blue-600 text-white rounded-2xl flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-4"><span class="text-3xl">🍺</span><span class="font-black uppercase text-lg">Getränke buchen</span></div>
-                <span class="opacity-50 font-bold">➔</span>
+            <button onclick="viewMemberSearch('book')" class="active-scale p-6 bg-blue-600 text-white rounded-2xl flex items-center justify-between shadow-lg">
+                <div class="flex items-center gap-4"><span class="text-3xl">🍺</span><span class="font-black uppercase">Getränke buchen</span></div>
             </button>
-            <button onclick="viewMemberSearch('pay')" class="active-scale p-5 bg-green-600 text-white rounded-2xl flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-4"><span class="text-3xl">💰</span><span class="font-black uppercase text-lg">Abrechnung</span></div>
-                <span class="opacity-50 font-bold">➔</span>
+            <button onclick="viewMemberSearch('pay')" class="active-scale p-6 bg-green-600 text-white rounded-2xl flex items-center justify-between shadow-lg">
+                <div class="flex items-center gap-4"><span class="text-3xl">💰</span><span class="font-black uppercase">Abrechnung</span></div>
             </button>
-            <button onclick="viewFormUpdate()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-between border border-slate-200">
-                <div class="flex items-center gap-4"><span class="text-3xl">📝</span><span class="font-black uppercase">Stammdaten Update</span></div>
-                <span class="opacity-30 font-bold">➔</span>
+            <button onclick="viewFormUpdate()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center gap-4 border">
+                <span class="text-2xl">📝</span><span class="font-black uppercase text-sm">Stammdaten Update</span>
             </button>
-            <button onclick="viewFormNew()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-between border border-slate-200">
-                <div class="flex items-center gap-4"><span class="text-3xl">🎾</span><span class="font-black uppercase">Mitgliedsantrag</span></div>
-                <span class="opacity-30 font-bold">➔</span>
+            <button onclick="viewFormNew()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center gap-4 border">
+                <span class="text-2xl">🎾</span><span class="font-black uppercase text-sm">Mitgliedsantrag</span>
             </button>
-            <button onclick="viewMessage()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-between border border-slate-200">
-                <div class="flex items-center gap-4"><span class="text-3xl">📩</span><span class="font-black uppercase">Mitteilung</span></div>
-                <span class="opacity-30 font-bold">➔</span>
+            <button onclick="viewMessage()" class="active-scale p-5 bg-slate-100 text-slate-700 rounded-2xl flex items-center gap-4 border">
+                <span class="text-2xl">📩</span><span class="font-black uppercase text-sm">Mitteilung</span>
             </button>
         </div>
     `;
 }
 
-// --- SUCHE ---
+// --- SUCHE (Mit Unterstützung für Mehrfachauswahl bei 'pay') ---
 function viewMemberSearch(mode) {
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Abbrechen</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Mitglied wählen</h2>
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">${mode === 'pay' ? 'Personen auswählen' : 'Wer bucht?'}</h2>
+        
+        ${mode === 'pay' ? '<div id="selected-list" class="flex flex-wrap gap-2 mb-4"></div>' : ''}
+        
         <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name oder Nr." class="input-field text-xl mb-4">
-        <div id="search-results" class="space-y-2"></div>
+        <div id="search-results" class="space-y-2 mb-6"></div>
+        
+        ${mode === 'pay' ? `<button id="btn-final-pay" onclick="viewSettlement()" class="hidden w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Auswahl abrechnen</button>` : ''}
     `;
-    setTimeout(() => document.getElementById('mSearch').focus(), 100);
+    updateSelectedList();
 }
 
 async function runSearch(q, mode) {
     if(q.length < 1) return;
     const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(5);
     document.getElementById('search-results').innerHTML = data.map(m => `
-        <button onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-slate-50 border rounded-xl flex justify-between items-center active-scale font-bold uppercase text-xs">
-            ${m.vorname} ${m.nachname_initial} (${m.mitgliedsnummer}) <span class="text-blue-500 font-black">➔</span>
+        <button onclick="addMemberToSelection(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-slate-50 border rounded-xl flex justify-between items-center active-scale font-bold uppercase text-xs">
+            ${m.vorname} ${m.nachname_initial} (${m.mitgliedsnummer}) <span class="text-blue-500 font-black">+</span>
         </button>
     `).join('');
 }
 
-function selectMember(m, mode) {
-    currentMember = m;
-    if(mode === 'book') viewBooking(); else viewSettlement();
+function addMemberToSelection(m, mode) {
+    if(mode === 'book') {
+        currentMember = m;
+        viewBooking();
+    } else {
+        if(!settlementMembers.find(sm => sm.id === m.id)) {
+            settlementMembers.push(m);
+            document.getElementById('mSearch').value = "";
+            document.getElementById('search-results').innerHTML = "";
+            updateSelectedList();
+        }
+    }
 }
 
-// --- BUCHUNG ---
+function updateSelectedList() {
+    const list = document.getElementById('selected-list');
+    if(!list) return;
+    list.innerHTML = settlementMembers.map((m, idx) => `
+        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-2 uppercase">
+            ${m.vorname} <button onclick="settlementMembers.splice(${idx},1); updateSelectedList();" class="text-red-500 text-lg">×</button>
+        </span>
+    `).join('');
+    document.getElementById('btn-final-pay').classList.toggle('hidden', settlementMembers.length === 0);
+}
+
+// --- BUCHUNG (Mit Minus-Korrektur) ---
 async function viewBooking() {
     const { data: prods } = await supabaseClient.from('produkte').select('*');
     document.getElementById('view').innerHTML = `
-        <div class="flex justify-between items-center mb-4"><h2 class="font-black uppercase text-[#0f2d52]">Produkte</h2><span class="text-[10px] font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full uppercase">${currentMember.vorname}</span></div>
+        <div class="flex justify-between items-center mb-4"><h2 class="font-black uppercase text-[#0f2d52]">Produkte</h2><span class="text-[10px] font-bold bg-blue-100 px-3 py-1 rounded-full uppercase">${currentMember.vorname}</span></div>
         <div class="grid grid-cols-2 gap-2 mb-6">
             ${prods.map(p => `
                 <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-2xl border flex flex-col items-center">
@@ -108,30 +124,34 @@ async function viewBooking() {
         </div>
         <div id="cart-box" class="hidden border-t pt-4">
             <div id="cart-items" class="space-y-2 mb-4"></div>
-            <button onclick="saveBooking()" class="w-full bg-[#0f2d52] text-white p-4 rounded-xl font-black uppercase">Jetzt buchen</button>
+            <button onclick="saveBooking()" class="w-full bg-[#0f2d52] text-white p-4 rounded-xl font-black uppercase shadow-lg">Jetzt buchen</button>
         </div>
     `;
 }
 
 function addToCart(n, p, e) {
-    const item = cart.find(i => i.name === n);
-    if(item) item.count++; else cart.push({name:n, preis:p, emoji:e, count:1});
+    if(n) {
+        const item = cart.find(i => i.name === n);
+        if(item) item.count++; else cart.push({name:n, preis:p, emoji:e, count:1});
+    }
     const box = document.getElementById('cart-box');
     box.classList.remove('hidden');
     document.getElementById('cart-items').innerHTML = cart.map((i, idx) => `
-        <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg text-xs font-bold uppercase">
+        <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg text-xs font-bold uppercase border">
             <span>${i.emoji} ${i.name}</span>
-            <div class="flex items-center gap-3">
-                <button onclick="changeQty(${idx},-1)" class="w-6 h-6 bg-white border rounded-full">-</button>
-                <span>${i.count}</span>
-                <button onclick="changeQty(${idx},1)" class="w-6 h-6 bg-[#0f2d52] text-white rounded-full">+</button>
+            <div class="flex items-center gap-4">
+                <button onclick="changeQty(${idx},-1)" class="w-8 h-8 bg-white border rounded-full text-xl shadow-sm">-</button>
+                <span class="font-black w-4 text-center">${i.count}</span>
+                <button onclick="changeQty(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full text-xl shadow-sm">+</button>
             </div>
         </div>
     `).join('');
+    if(cart.length === 0) box.classList.add('hidden');
 }
 
 function changeQty(idx, d) {
-    cart[idx].count += d; if(cart[idx].count <= 0) cart.splice(idx,1);
+    cart[idx].count += d;
+    if(cart[idx].count <= 0) cart.splice(idx,1);
     addToCart(); // Refresh
 }
 
@@ -141,132 +161,11 @@ async function saveBooking() {
             await supabaseClient.from('buchungen').insert([{ mitglied_id: currentMember.id, artikel: i.name, preis: i.preis, bezahlt: false }]);
         }
     }
-    location.reload();
+    showHome();
 }
 
-// --- ABRECHNUNG ---
+// --- ABRECHNUNG (Mehrere Mitglieder) ---
 async function viewSettlement() {
-    const { data: open } = await supabaseClient.from('buchungen').select('*').eq('mitglied_id', currentMember.id).eq('bezahlt', false);
-    const sum = open.reduce((s, i) => s + i.preis, 0);
-    document.getElementById('view').innerHTML = `
-        <h2 class="font-black uppercase text-[#0f2d52] mb-4">Deine Rechnung</h2>
-        <div class="bg-blue-900 text-white p-6 rounded-3xl mb-4 text-center">
-            <div class="text-[10px] font-bold opacity-50 uppercase mb-1">Offener Betrag für ${currentMember.vorname}</div>
-            <div class="text-4xl font-black">${sum.toFixed(2)} €</div>
-        </div>
-        <div class="grid grid-cols-1 gap-2">
-            <button onclick="pay('Bar')" class="p-4 bg-green-50 text-green-700 rounded-xl font-black uppercase border border-green-200">💵 Bar in Kasse</button>
-            <button onclick="pay('PayPal')" class="p-4 bg-blue-50 text-blue-700 rounded-xl font-black uppercase border border-blue-200">📱 PayPal</button>
-            <button onclick="pay('Bank')" class="p-4 bg-slate-100 rounded-xl font-black uppercase border">🏦 Überweisung</button>
-        </div>
-    `;
-}
-
-async function pay(art) {
-    await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).eq('mitglied_id', currentMember.id).eq('bezahlt', false);
-    location.reload();
-}
-
-// --- FORMULARE (Integration der Felder aus dem Screenshot) ---
-
-function viewFormUpdate() {
-    document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Daten Update</h2>
-        <div class="space-y-3">
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="v" placeholder="Vorname" class="input-field"><input type="text" id="n" placeholder="Nachname" class="input-field"></div>
-            <input type="text" id="adr" placeholder="Adresse" class="input-field">
-            <div class="grid grid-cols-3 gap-2"><input type="text" id="plz" placeholder="PLZ" class="input-field"><input type="text" id="ort" placeholder="Ort" class="input-field col-span-2"></div>
-            <input type="text" id="mob" placeholder="Mobil" class="input-field">
-            <input type="email" id="mail" placeholder="E-Mail" class="input-field">
-            <button onclick="submitAnfrage('Update')" class="w-full bg-[#0f2d52] text-white p-4 rounded-xl font-black uppercase">Senden</button>
-        </div>
-    `;
-}
-
-function viewFormNew() {
-    document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center">Aufnahmeantrag</h2>
-        <div class="space-y-3 pb-8">
-            <div class="grid grid-cols-2 gap-2">
-                <select id="anrede" class="input-field"><option>Herr</option><option>Frau</option></select>
-                <input type="date" id="eintritt" class="input-field">
-            </div>
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="v" placeholder="Vorname" class="input-field"><input type="text" id="n" placeholder="Nachname" class="input-field"></div>
-            <input type="text" id="adr" placeholder="Adresse" class="input-field">
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="mob" placeholder="Telefon Mobil" class="input-field"><input type="email" id="mail" placeholder="E-Mail" class="input-field"></div>
-            <div class="grid grid-cols-2 gap-2">
-                <select id="sex" class="input-field"><option>Männlich</option><option>Weiblich</option></select>
-                <input type="date" id="geb" class="input-field">
-            </div>
-            <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                <label class="label-style">SEPA Lastschrift</label>
-                <input type="text" id="iban" placeholder="IBAN" class="input-field mb-2">
-                <input type="text" id="bic" placeholder="BIC" class="input-field mb-2">
-                <input type="text" id="inh" placeholder="Kontoinhaber (falls abweichend)" class="input-field text-xs">
-            </div>
-            <select id="klasse" class="input-field">
-                <option>Einzelmitglied (90€)</option><option>Jugend (48€)</option><option>Familie (156€)</option><option>Medenspieler (50€)</option><option>Passiv (50€)</option>
-            </select>
-            <div id="fam-area"></div>
-            <button onclick="addFam()" class="w-full p-2 bg-slate-100 text-[10px] font-bold rounded-lg uppercase">+ Familienmitglied hinzufügen</button>
-            <button onclick="submitAnfrage('Antrag')" class="w-full bg-green-600 text-white p-5 rounded-2xl font-black uppercase text-lg shadow-lg">Jetzt Anmelden</button>
-        </div>
-    `;
-}
-
-let famCounter = 0;
-function addFam() {
-    if(famCounter >= 5) return;
-    famCounter++;
-    const div = document.createElement('div');
-    div.className = "p-3 bg-slate-50 border rounded-xl mt-2";
-    div.innerHTML = `
-        <div class="text-[8px] font-bold text-slate-400 mb-1">FAMILIENMITGLIED ${famCounter}</div>
-        <div class="grid grid-cols-2 gap-2"><input type="text" class="fam-v p-2 bg-white rounded border text-xs" placeholder="Vorname"><input type="text" class="fam-n p-2 bg-white rounded border text-xs" placeholder="Nachname"></div>
-        <input type="date" class="fam-geb w-full p-2 bg-white rounded border text-xs mt-1">
-    `;
-    document.getElementById('fam-area').appendChild(div);
-}
-
-function viewMessage() {
-    document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Mitteilung</h2>
-        <input type="text" id="v" placeholder="Dein Name (Optional)" class="input-field mb-3">
-        <textarea id="msg" placeholder="Deine Nachricht..." class="input-field h-40"></textarea>
-        <button onclick="submitAnfrage('Mitteilung')" class="w-full bg-[#0f2d52] text-white p-4 rounded-xl font-black uppercase">Senden</button>
-    `;
-}
-
-async function submitAnfrage(type) {
-    const famData = Array.from(document.querySelectorAll('#fam-area > div')).map(d => ({
-        v: d.querySelector('.fam-v').value,
-        n: d.querySelector('.fam-n').value,
-        g: d.querySelector('.fam-geb').value
-    }));
-
-    const { error } = await supabaseClient.from('anfragen').insert([{
-        typ: type,
-        vorname: document.getElementById('v')?.value,
-        nachname: document.getElementById('n')?.value,
-        anrede: document.getElementById('anrede')?.value,
-        strasse: document.getElementById('adr')?.value,
-        email: document.getElementById('mail')?.value,
-        iban: document.getElementById('iban')?.value,
-        beitragsart: document.getElementById('klasse')?.value,
-        familie_json: famData,
-        nachricht: document.getElementById('msg')?.value
-    }]);
-
-    if(!error) {
-        document.getElementById('view').innerHTML = `<div class="text-center p-10 h-full flex flex-col items-center justify-center"><span class="text-6xl mb-4">✅</span><h2 class="font-black uppercase">Übermittelt!</h2></div>`;
-        setTimeout(() => location.reload(), 2000);
-    }
-}
-
-showHome();
-</script>
-</body>
-</html>
+    const ids = settlementMembers.map(m => m.id);
+    const { data: open } = await supabaseClient.from('buchungen').select('*').in('mitglied_id', ids).eq('bezahlt', false);
+    const sum = open.reduce((s, i) =>
