@@ -2,78 +2,127 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Diagnose TC Roßbach</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TC Roßbach - Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --tcr-blue: #0f2d52; --tcr-light: #1d4e89; --tcr-yellow: #d9ff00; }
+        body { user-select: none; touch-action: manipulation; background-color: var(--tcr-blue); color: #1e293b; font-family: sans-serif; }
+        .bg-tcr-blue { background-color: var(--tcr-light); }
+        .active-scale:active { transform: scale(0.96); transition: 0.1s; }
+        .bg-gradient-main { background: radial-gradient(circle at center, #1e4b85 0%, #0a1f3d 100%); }
+    </style>
 </head>
-<body class="bg-[#0f2d52] text-white font-sans p-10">
-
-    <div class="max-w-xl mx-auto bg-white/10 p-8 rounded-3xl backdrop-blur-md border border-white/20">
-        <h1 class="text-2xl font-bold mb-6 uppercase tracking-tighter">System-Check</h1>
-        
-        <div class="space-y-4">
-            <div id="step-1" class="p-4 rounded-xl bg-gray-800 border-l-4 border-gray-500">
-                1. Lade Datenbank-Modul...
-            </div>
-            <div id="step-2" class="p-4 rounded-xl bg-gray-800 border-l-4 border-gray-500">
-                2. Erstelle Verbindung...
-            </div>
-            <div id="step-3" class="p-4 rounded-xl bg-gray-800 border-l-4 border-gray-500">
-                3. Test-Abfrage (Produkte)...
-            </div>
-        </div>
-
-        <div id="final-result" class="mt-8 p-6 rounded-2xl hidden">
-            </div>
-    </div>
+<body class="h-screen flex flex-col overflow-hidden bg-gradient-main">
 
 <script>
-    // --- HIER DEINE DATEN EINTRAGEN ---
-    const URL = "https://pincsrqnlikcalxofztq.supabase.co"; 
-    const KEY = "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q"; 
-    // ---------------------------------
+    // Wir setzen die URL und den Key direkt als saubere Strings ohne Endpunkte oder Leerzeichen
+    const URL_CLEAN = "https://pincsrqnlikcalxofztq.supabase.co".trim();
+    const KEY_CLEAN = "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q".trim();
+    
+    // Initialisierung des Clients
+    const supabaseClient = supabase.createClient(URL_CLEAN, KEY_CLEAN);
+</script>
 
-    async function runDiag() {
-        const s1 = document.getElementById('step-1');
-        const s2 = document.getElementById('step-2');
-        const s3 = document.getElementById('step-3');
-        const res = document.getElementById('final-result');
+<div id="screen-home" class="flex-grow flex flex-col items-center justify-center p-6 text-white text-center">
+    <div class="mb-10 bg-white p-8 rounded-[40px] shadow-2xl border-b-8 border-tcr-yellow">
+        <img src="Vereins-Logo.png" alt="TC Roßbach Logo" class="h-44 mx-auto">
+    </div>
+    <h1 class="text-2xl font-black uppercase mb-10 tracking-[0.2em]">Clubhaus Terminal</h1>
+    <button onclick="openDrinks()" class="active-scale w-full max-w-md bg-white text-[#0f2d52] p-8 rounded-3xl shadow-2xl flex items-center justify-between border-l-8 border-tcr-yellow">
+        <span class="text-2xl font-black uppercase">🍺 Getränke buchen</span>
+        <span class="text-2xl font-bold">→</span>
+    </button>
+</div>
 
-        try {
-            // Schritt 1: Check ob Library geladen
-            if (typeof supabase === 'undefined') {
-                throw new Error("Supabase-Bibliothek konnte nicht geladen werden. Prüfe dein Internet.");
-            }
-            s1.className = s1.className.replace('gray-500', 'green-500') + " bg-green-900/20";
-            s1.innerText = "1. Datenbank-Modul geladen ✅";
+<div id="screen-sub" class="hidden flex-grow flex flex-col p-4">
+    <button onclick="location.reload()" class="mb-4 bg-white/20 text-white px-6 py-2 rounded-xl self-start font-bold uppercase text-sm">← Zurück</button>
+    <div id="sub-content" class="bg-white rounded-[40px] shadow-2xl p-8 flex-grow overflow-y-auto border-t-[12px] border-[#1d4e89]"></div>
+</div>
 
-            // Schritt 2: Client erstellen
-            const client = supabase.createClient(URL, KEY);
-            s2.className = s2.className.replace('gray-500', 'green-500') + " bg-green-900/20";
-            s2.innerText = "2. Verbindung konfiguriert ✅";
+<script>
+let selectedMemberId = null;
+let selectedMemberName = "";
 
-            // Schritt 3: Echte Abfrage
-            const { data, error } = await client.from('produkte').select('name').limit(1);
-            
-            if (error) throw error;
+function openDrinks() {
+    document.getElementById('screen-home').classList.add('hidden');
+    document.getElementById('screen-sub').classList.remove('hidden');
+    document.getElementById('sub-content').innerHTML = `
+        <h2 class="text-3xl font-black text-[#0f2d52] mb-2 uppercase">Wer bist du?</h2>
+        <p class="text-slate-400 mb-6 font-bold">Nummer (z.B. 85) oder Name eingeben:</p>
+        <input type="text" id="mSearch" oninput="searchM(this.value)" placeholder="Suchen..." class="w-full p-6 bg-slate-100 border-2 rounded-2xl text-2xl font-bold mb-4 outline-none focus:border-[#1d4e89]">
+        <div id="results" class="space-y-3"></div>
+    `;
+    setTimeout(() => document.getElementById('mSearch').focus(), 200);
+}
 
-            s3.className = s3.className.replace('gray-500', 'green-500') + " bg-green-900/20";
-            s3.innerText = "3. Test-Abfrage erfolgreich ✅";
+async function searchM(q) {
+    const resDiv = document.getElementById('results');
+    if(q.trim().length < 1) { resDiv.innerHTML = ''; return; }
 
-            res.className = "mt-8 p-6 rounded-2xl bg-green-500 text-white font-bold text-center";
-            res.innerHTML = "ALLES BEREIT!<br><span class='font-normal text-sm'>Die Verbindung zur Datenbank steht.</span>";
-            res.classList.remove('hidden');
+    // Suche in Spalte mitgliedsnummer (Text) oder vorname
+    const { data, error } = await supabaseClient
+        .from('mitglieder')
+        .select('*')
+        .or(`mitgliedsnummer.ilike.%${q.trim()}%,vorname.ilike.%${q.trim()}%`)
+        .limit(5);
 
-        } catch (err) {
-            res.className = "mt-8 p-6 rounded-2xl bg-red-600 text-white font-mono text-sm overflow-auto";
-            res.innerHTML = "FEHLER ENTDECKT:<br><br>" + err.message;
-            res.classList.remove('hidden');
-            console.error(err);
-        }
+    if(error) {
+        resDiv.innerHTML = `<p class="text-red-500 font-bold p-4 bg-red-50 rounded-xl uppercase text-xs">Verbindungsproblem: ${error.message}</p>`;
+        return;
     }
 
-    // Starte Diagnose nach 1 Sekunde
-    setTimeout(runDiag, 1000);
+    let html = '';
+    data.forEach(m => {
+        html += `
+            <button onclick="selectM('${m.id}', '${m.vorname} ${m.nachname_initial}')" class="active-scale w-full text-left bg-slate-50 p-6 rounded-2xl border-l-[10px] border-[#0f2d52] shadow-sm flex justify-between items-center">
+                <div class="font-black text-[#0f2d52] uppercase">
+                    <span class="text-xs text-slate-400 block font-bold">Nr. ${m.mitgliedsnummer}</span>
+                    ${m.vorname} ${m.nachname_initial}
+                </div>
+                <span class="bg-[#0f2d52] text-white px-4 py-2 rounded-xl text-xs font-bold">WÄHLEN</span>
+            </button>`;
+    });
+    resDiv.innerHTML = html || '<p class="text-center p-4 text-slate-400 font-bold uppercase">Kein Treffer</p>';
+}
+
+async function selectM(id, name) {
+    selectedMemberId = id;
+    selectedMemberName = name;
+    document.getElementById('sub-content').innerHTML = `
+        <h2 class="text-3xl font-black text-[#0f2d52] mb-1 uppercase text-center">Getränk</h2>
+        <p class="text-center mb-8 font-bold text-slate-400 uppercase text-xs tracking-widest">Konto: ${name}</p>
+        <div id="pList" class="grid grid-cols-2 gap-5 text-center">Lade Produkte...</div>
+    `;
+    const { data } = await supabaseClient.from('produkte').select('*');
+    let html = '';
+    data.forEach(p => {
+        html += `
+            <button onclick="book('${p.name}', ${p.preis})" class="active-scale bg-white border-2 border-slate-100 p-6 rounded-[35px] flex flex-col items-center shadow-lg">
+                <span class="text-6xl mb-3">${p.emoji || '🥤'}</span>
+                <span class="font-black text-sm uppercase text-slate-600">${p.name}</span>
+                <span class="bg-[#0f2d52] text-white px-4 py-1 rounded-full font-black text-lg mt-3">${Number(p.preis).toFixed(2)}€</span>
+            </button>`;
+    });
+    document.getElementById('pList').innerHTML = html;
+}
+
+async function book(item, price) {
+    const { error } = await supabaseClient.from('buchungen').insert([{ 
+        mitglied_id: selectedMemberId, 
+        artikel: item, preis: price 
+    }]);
+    if(!error) { 
+        document.getElementById('sub-content').innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center text-center">
+                <span class="text-8xl mb-4">✅</span>
+                <h2 class="text-4xl font-black text-[#0f2d52] uppercase">Gebucht!</h2>
+                <p class="text-slate-500 mt-2 font-bold">${item} für ${selectedMemberName}</p>
+            </div>`;
+        setTimeout(() => location.reload(), 2000);
+    }
+}
 </script>
 </body>
 </html>
