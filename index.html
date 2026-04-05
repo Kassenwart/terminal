@@ -8,20 +8,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root { --tcr-blue: #0f2d52; }
-        body { background-color: #0f172a; font-family: sans-serif; }
-        .active-scale:active { transform: scale(0.98); transition: 0.1s; }
-        .input-field { width: 100%; padding: 0.8rem; background: #f8fafc; border-radius: 0.75rem; font-weight: bold; border: 2px solid #e2e8f0; outline: none; }
-        .label-style { display: block; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 0.2rem; margin-left: 0.4rem; }
+        body { background-color: #0f172a; font-family: sans-serif; overflow-x: hidden; }
+        .active-scale:active { transform: scale(0.96); transition: 0.1s; }
+        .input-field { width: 100%; padding: 1rem; background: #f8fafc; border-radius: 1rem; font-weight: bold; border: 2px solid #e2e8f0; outline: none; }
+        .negative-count { color: #ef4444 !important; font-weight: 900; }
+        .cart-item { animation: slideIn 0.2s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="min-h-screen flex flex-col p-4 items-center">
+<body class="min-h-screen flex flex-col p-2 sm:p-4 items-center">
 
 <script>
-    // Deine verifizierten Zugangsdaten
     const supabaseClient = supabase.createClient("https://pincsrqnlikcalxofztq.supabase.co", "sb_publishable_AiIuTquIjZaBGvZnki6OpQ_ggfsyg8q");
 </script>
 
-<div id="app-container" class="bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden max-w-xl w-full min-h-[650px]">
+<div id="app-container" class="bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden max-w-xl w-full min-h-[650px] border border-slate-800">
     
     <div class="p-8 flex flex-col items-center bg-white">
         <img src="Vereins-Logo.png" class="h-24 cursor-pointer active-scale" onclick="location.reload()">
@@ -33,58 +34,70 @@
 
 <script>
 let currentMember = null;
+let isArbeitsdienst = false;
 let cart = [];
 let settlementMembers = [];
 
 function showHome() {
-    currentMember = null;
-    cart = [];
-    settlementMembers = [];
+    currentMember = null; cart = []; settlementMembers = []; isArbeitsdienst = false;
     document.getElementById('view').innerHTML = `
-        <div class="flex flex-col gap-3">
-            <button onclick="viewMemberSearch('book')" class="active-scale p-6 bg-blue-600 text-white rounded-3xl flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-4"><span class="text-3xl">🍺</span><span class="font-black uppercase tracking-tight text-lg">Getränke buchen</span></div>
+        <div class="flex flex-col gap-4">
+            <button onclick="viewMemberSearch('book')" class="active-scale p-8 bg-blue-700 text-white rounded-[2.5rem] flex items-center justify-between shadow-xl">
+                <div class="flex items-center gap-4"><span class="text-4xl">🍺</span><span class="font-black uppercase text-xl tracking-tight">Getränke buchen</span></div>
             </button>
-            <button onclick="viewMemberSearch('pay')" class="active-scale p-6 bg-green-600 text-white rounded-3xl flex items-center justify-between shadow-lg">
-                <div class="flex items-center gap-4"><span class="text-3xl">💰</span><span class="font-black uppercase tracking-tight text-lg">Abrechnung</span></div>
+            <button onclick="viewMemberSearch('pay')" class="active-scale p-8 bg-green-600 text-white rounded-[2.5rem] flex items-center justify-between shadow-xl">
+                <div class="flex items-center gap-4"><span class="text-4xl">💰</span><span class="font-black uppercase text-xl tracking-tight text-left">Getränke<br>abrechnen</span></div>
             </button>
-            <button onclick="viewFormUpdate()" class="active-scale p-5 bg-slate-50 text-slate-700 rounded-2xl flex items-center gap-4 border border-slate-200">
-                <span class="text-2xl">📝</span><span class="font-black uppercase text-xs">Stammdaten Update</span>
-            </button>
-            <button onclick="viewFormNew()" class="active-scale p-5 bg-slate-50 text-slate-700 rounded-2xl flex items-center gap-4 border border-slate-200">
-                <span class="text-2xl">🎾</span><span class="font-black uppercase text-xs">Mitgliedsantrag</span>
-            </button>
-            <button onclick="viewMessage()" class="active-scale p-5 bg-slate-50 text-slate-700 rounded-2xl flex items-center gap-4 border border-slate-200">
-                <span class="text-2xl">📩</span><span class="font-black uppercase text-xs">Mitteilung an Vorstand</span>
+            <button onclick="viewMessage()" class="active-scale p-5 bg-slate-50 text-slate-500 rounded-2xl flex items-center gap-4 border border-slate-200 mt-4">
+                <span class="text-2xl">📩</span><span class="font-bold uppercase text-xs">Mitteilung an Vorstand</span>
             </button>
         </div>
     `;
 }
 
-// --- SUCHE & MEHRFACHAUSWAHL ---
+// --- SUCHE (Arbeitsdienst dezent untergeordnet) ---
 function viewMemberSearch(mode) {
     document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">${mode === 'pay' ? 'Personen wählen' : 'Wer bucht?'}</h2>
-        ${mode === 'pay' ? '<div id="selected-list" class="flex flex-wrap gap-2 mb-4"></div>' : ''}
-        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name suchen..." class="input-field text-xl mb-4">
-        <div id="search-results" class="space-y-2 mb-4"></div>
-        ${mode === 'pay' ? `<button id="btn-final-pay" onclick="viewSettlement()" class="hidden w-full bg-green-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Auswahl abrechnen</button>` : ''}
+        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase flex items-center gap-1">← Zurück</button>
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase tracking-tight">${mode === 'pay' ? 'Abrechnung wählen' : 'Wer bucht gerade?'}</h2>
+        
+        <div id="selected-list" class="flex flex-wrap gap-2 mb-4"></div>
+        
+        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name suchen..." class="input-field text-xl mb-4 border-blue-50 focus:border-blue-500 shadow-sm">
+        
+        <div id="search-results" class="space-y-2 mb-6"></div>
+
+        ${mode === 'book' ? `
+            <div class="pt-6 border-t border-slate-100 mt-4">
+                <button onclick="startArbeitsdienst()" class="w-full p-3 bg-slate-100 text-slate-500 rounded-xl font-bold uppercase text-[10px] active-scale flex items-center justify-center gap-2 opacity-70">
+                    🛠️ Als Arbeitsdienst buchen (0,00€)
+                </button>
+            </div>
+        ` : ''}
+        
+        ${mode === 'pay' ? `<button id="btn-final-pay" onclick="viewSettlement()" class="hidden w-full bg-green-600 text-white p-5 rounded-2xl font-black uppercase mt-6 shadow-xl active-scale">Auswahl abrechnen</button>` : ''}
     `;
-    updateSelectedList();
+    setTimeout(() => document.getElementById('mSearch').focus(), 100);
+}
+
+function startArbeitsdienst() {
+    isArbeitsdienst = true;
+    currentMember = { id: '00000000-0000-0000-0000-000000000000', vorname: 'Arbeitsdienst' };
+    viewBooking();
 }
 
 async function runSearch(q, mode) {
-    if(q.length < 1) return;
-    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%`).limit(5);
+    if(q.length < 2) return;
+    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%,nachname.ilike.%${q}%`).limit(6);
     document.getElementById('search-results').innerHTML = data.map(m => `
-        <button onclick="addMemberToSelection(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-slate-50 border rounded-xl flex justify-between items-center active-scale font-bold uppercase text-[11px]">
-            ${m.vorname} ${m.nachname_initial} (${m.mitgliedsnummer}) <span class="text-blue-500 font-black">+</span>
+        <button onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-slate-50 border rounded-2xl flex justify-between items-center font-bold uppercase text-[11px] active-scale">
+            <span>${m.vorname} ${m.nachname_initial || ''} <span class="text-slate-400 font-normal ml-1">(${m.mitgliedsnummer})</span></span>
+            <span class="text-blue-500 text-xl font-black">+</span>
         </button>
     `).join('');
 }
 
-function addMemberToSelection(m, mode) {
+function selectMember(m, mode) {
     if(mode === 'book') { currentMember = m; viewBooking(); }
     else {
         if(!settlementMembers.find(sm => sm.id === m.id)) {
@@ -100,86 +113,96 @@ function updateSelectedList() {
     const list = document.getElementById('selected-list');
     if(!list) return;
     list.innerHTML = settlementMembers.map((m, idx) => `
-        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-2 uppercase">
-            ${m.vorname} <button onclick="settlementMembers.splice(${idx},1); updateSelectedList();" class="text-red-500 font-bold ml-1">×</button>
+        <span class="bg-blue-600 text-white px-4 py-2 rounded-full text-[10px] font-black flex items-center gap-2 uppercase">
+            ${m.vorname} <button onclick="settlementMembers.splice(${idx},1); updateSelectedList();" class="bg-white/20 rounded-full w-4 h-4 leading-none text-xs">×</button>
         </span>
     `).join('');
     const btn = document.getElementById('btn-final-pay');
     if(btn) btn.classList.toggle('hidden', settlementMembers.length === 0);
 }
 
-// --- BUCHUNG MIT KORREKTUR ---
 async function viewBooking() {
-    const { data: prods } = await supabaseClient.from('produkte').select('*');
+    const { data: prods } = await supabaseClient.from('produkte').select('*').order('preis', {ascending: true});
     document.getElementById('view').innerHTML = `
-        <div class="flex justify-between items-center mb-4"><h2 class="font-black uppercase text-[#0f2d52]">Produkte</h2><span class="text-[10px] font-bold bg-blue-100 px-3 py-1 rounded-full uppercase">${currentMember.vorname}</span></div>
-        <div class="grid grid-cols-2 gap-2 mb-6">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <h2 class="font-black uppercase text-[#0f2d52] text-2xl">Produkte</h2>
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Konto: ${currentMember.vorname}</div>
+            </div>
+            ${isArbeitsdienst ? '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg font-black text-[10px] uppercase">Arbeitsdienst</span>' : ''}
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-8">
             ${prods.map(p => `
-                <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-4 rounded-2xl border flex flex-col items-center">
-                    <span class="text-3xl">${p.emoji}</span>
-                    <span class="font-bold text-[9px] uppercase mt-1">${p.name}</span>
-                    <span class="font-black text-blue-900">${p.preis.toFixed(2)}€</span>
+                <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-5 rounded-[2rem] border-2 border-transparent flex flex-col items-center shadow-sm">
+                    <span class="text-4xl mb-2">${p.emoji}</span>
+                    <span class="font-bold text-[10px] uppercase text-slate-500 tracking-tighter">${p.name}</span>
+                    <span class="font-black text-blue-900">${isArbeitsdienst ? '0.00' : p.preis.toFixed(2)}€</span>
                 </button>
             `).join('')}
         </div>
-        <div id="cart-box" class="hidden border-t pt-4">
-            <div id="cart-items" class="space-y-2 mb-4"></div>
-            <button onclick="saveBooking()" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black uppercase shadow-lg">Jetzt buchen</button>
+        <div id="cart-box" class="hidden sticky bottom-0 bg-white pt-4 border-t-2 border-slate-100 pb-2">
+            <div id="cart-items" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
+            <button onclick="saveBooking()" class="w-full bg-blue-700 text-white p-5 rounded-2xl font-black uppercase shadow-xl active-scale">Buchung speichern</button>
         </div>
     `;
 }
 
 function addToCart(n, p, e) {
-    if(n) {
-        const item = cart.find(i => i.name === n);
-        if(item) item.count++; else cart.push({name:n, preis:p, emoji:e, count:1});
-    }
+    const item = cart.find(i => i.name === n);
+    if(item) item.count++; else cart.push({name:n, preis:isArbeitsdienst ? 0 : p, emoji:e, count:1});
+    renderCart();
+}
+
+function renderCart() {
     const box = document.getElementById('cart-box');
-    box.classList.remove('hidden');
+    box.classList.toggle('hidden', cart.length === 0);
     document.getElementById('cart-items').innerHTML = cart.map((i, idx) => `
-        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl text-xs font-bold uppercase border">
-            <span>${i.emoji} ${i.name}</span>
-            <div class="flex items-center gap-4">
-                <button onclick="changeQty(${idx},-1)" class="w-8 h-8 bg-white border rounded-full text-xl shadow-sm">-</button>
-                <span class="font-black w-4 text-center text-sm">${i.count}</span>
-                <button onclick="changeQty(${idx},1)" class="w-8 h-8 bg-[#0f2d52] text-white rounded-full text-xl shadow-sm">+</button>
+        <div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border cart-item">
+            <span class="font-bold text-[11px] uppercase">${i.emoji} ${i.name}</span>
+            <div class="flex items-center gap-5">
+                <button onclick="changeQty(${idx},-1)" class="w-10 h-10 bg-white border-2 rounded-full text-2xl font-bold shadow-sm active-scale">-</button>
+                <span class="font-black text-lg w-6 text-center ${i.count < 0 ? 'negative-count' : 'text-slate-700'}">${i.count}</span>
+                <button onclick="changeQty(${idx},1)" class="w-10 h-10 bg-blue-700 text-white rounded-full text-2xl font-bold shadow-sm active-scale">+</button>
             </div>
         </div>
     `).join('');
-    if(cart.length === 0) box.classList.add('hidden');
 }
 
 function changeQty(idx, d) {
     cart[idx].count += d;
-    if(cart[idx].count <= 0) cart.splice(idx,1);
-    addToCart();
+    if(cart[idx].count === 0 && d < 0) cart.splice(idx,1); 
+    renderCart();
 }
 
 async function saveBooking() {
     for(const i of cart) {
-        for(let n=0; n<i.count; n++) {
-            await supabaseClient.from('buchungen').insert([{ mitglied_id: currentMember.id, artikel: i.name, preis: i.preis, bezahlt: false }]);
-        }
+        await supabaseClient.from('buchungen').insert([{ 
+            mitglied_id: currentMember.id, 
+            artikel: i.name, 
+            preis: i.preis * i.count, 
+            bezahlt: isArbeitsdienst ? true : false,
+            zahlungsart: isArbeitsdienst ? 'Arbeitsdienst' : null
+        }]);
     }
-    location.reload();
+    showHome();
 }
 
-// --- ABRECHNUNG ---
 async function viewSettlement() {
     const ids = settlementMembers.map(m => m.id);
     const { data: open } = await supabaseClient.from('buchungen').select('*').in('mitglied_id', ids).eq('bezahlt', false);
     const sum = open.reduce((s, i) => s + i.preis, 0);
     
     document.getElementById('view').innerHTML = `
-        <h2 class="font-black uppercase text-[#0f2d52] mb-4">Abrechnung</h2>
-        <div class="bg-[#0f2d52] text-white p-6 rounded-3xl mb-4 text-center shadow-xl">
-            <div class="text-[10px] font-bold opacity-60 uppercase mb-1">Summe für gewählte Personen</div>
-            <div class="text-4xl font-black">${sum.toFixed(2)} €</div>
+        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Zahlung fällig</h2>
+        <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] mb-8 text-center shadow-2xl">
+            <div class="text-[10px] font-bold opacity-40 uppercase tracking-widest mb-2">Offener Gesamtbetrag</div>
+            <div class="text-5xl font-black">${sum.toFixed(2)} €</div>
         </div>
-        <div class="grid grid-cols-1 gap-2 mt-6">
-            <button onclick="payAll('Bar')" class="p-5 bg-green-50 text-green-700 rounded-2xl font-black uppercase border-2 border-green-100 active-scale">💵 Bar in Kasse</button>
-            <button onclick="payAll('PayPal')" class="p-5 bg-blue-50 text-blue-700 rounded-2xl font-black uppercase border-2 border-blue-100 active-scale">📱 PayPal</button>
-            <button onclick="payAll('Bank')" class="p-5 bg-slate-100 text-slate-700 rounded-2xl font-black uppercase border-2 border-slate-200 active-scale">🏦 Überweisung</button>
+        <div class="grid grid-cols-1 gap-3">
+            <button onclick="payAll('Bar')" class="w-full p-5 bg-emerald-50 text-emerald-700 rounded-2xl font-black uppercase border-2 border-emerald-100 active-scale shadow-sm">💵 Bar in Kasse</button>
+            <button onclick="payAll('PayPal')" class="w-full p-5 bg-sky-50 text-sky-700 rounded-2xl font-black uppercase border-2 border-sky-100 active-scale shadow-sm">📱 PayPal</button>
+            <button onclick="payAll('Bank')" class="w-full p-5 bg-slate-50 text-slate-700 rounded-2xl font-black uppercase border-2 border-slate-200 active-scale shadow-sm">🏦 Überweisung</button>
         </div>
     `;
 }
@@ -187,68 +210,25 @@ async function viewSettlement() {
 async function payAll(art) {
     const ids = settlementMembers.map(m => m.id);
     await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).in('mitglied_id', ids).eq('bezahlt', false);
-    location.reload();
-}
-
-// --- FORMULARE (PUNKTE 3, 4, 5) ---
-function viewFormUpdate() {
-    document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Stammdaten Update</h2>
-        <div class="space-y-3">
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="v" placeholder="Vorname" class="input-field"><input type="text" id="n" placeholder="Nachname" class="input-field"></div>
-            <input type="text" id="adr" placeholder="Straße & Hausnummer" class="input-field">
-            <div class="grid grid-cols-3 gap-2"><input type="text" id="plz" placeholder="PLZ" class="input-field"><input type="text" id="ort" placeholder="Ort" class="input-field col-span-2"></div>
-            <input type="text" id="mob" placeholder="Mobilnummer" class="input-field">
-            <input type="email" id="mail" placeholder="E-Mail" class="input-field">
-            <button onclick="submitAnfrage('Update')" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black uppercase mt-4 shadow-lg">Update senden</button>
-        </div>
-    `;
-}
-
-function viewFormNew() {
-    document.getElementById('view').innerHTML = `
-        <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center italic">Mitgliedsantrag</h2>
-        <div class="space-y-3 pb-8">
-            <div class="grid grid-cols-2 gap-2"><select id="anrede" class="input-field"><option>Herr</option><option>Frau</option></select><input type="date" id="eintritt" class="input-field"></div>
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="v" placeholder="Vorname" class="input-field"><input type="text" id="n" placeholder="Nachname" class="input-field"></div>
-            <input type="text" id="adr" placeholder="Straße & Hausnummer" class="input-field">
-            <div class="grid grid-cols-3 gap-2"><input type="text" id="plz" placeholder="PLZ" class="input-field"><input type="text" id="ort" placeholder="Ort" class="input-field col-span-2"></div>
-            <div class="grid grid-cols-2 gap-2"><input type="text" id="mob" placeholder="Mobil" class="input-field"><input type="email" id="mail" placeholder="E-Mail" class="input-field"></div>
-            <div class="grid grid-cols-2 gap-2"><select id="sex" class="input-field"><option>Männlich</option><option>Weiblich</option></select><input type="date" id="geb" class="input-field"></div>
-            <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100"><label class="label-style">SEPA Lastschrift</label><input type="text" id="iban" placeholder="IBAN" class="input-field mb-2"><input type="text" id="bic" placeholder="BIC" class="input-field"></div>
-            <select id="klasse" class="input-field"><option>Einzelmitglied (90€)</option><option>Jugend (48€)</option><option>Familie (156€)</option><option>Medenspieler (50€)</option><option>Passiv (50€)</option></select>
-            <button onclick="submitAnfrage('Antrag')" class="w-full bg-green-600 text-white p-6 rounded-3xl font-black uppercase shadow-xl mt-4">Antrag senden</button>
-        </div>
-    `;
+    showHome();
 }
 
 function viewMessage() {
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Nachricht</h2>
-        <input type="text" id="v" placeholder="Dein Name (Optional)" class="input-field mb-3">
-        <textarea id="msg" placeholder="Deine Mitteilung..." class="input-field h-48"></textarea>
-        <button onclick="submitAnfrage('Mitteilung')" class="w-full bg-[#0f2d52] text-white p-5 rounded-2xl font-black uppercase mt-4">Senden</button>
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center">Vorstand kontaktieren</h2>
+        <textarea id="msg" placeholder="Schreib uns hier dein Anliegen..." class="input-field h-56 mb-4 shadow-inner resize-none"></textarea>
+        <button onclick="submitMsg()" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase shadow-lg active-scale">Nachricht absenden</button>
     `;
 }
 
-async function submitAnfrage(type) {
-    await supabaseClient.from('anfragen').insert([{
-        typ: type,
-        vorname: document.getElementById('v')?.value,
-        nachname: document.getElementById('n')?.value,
-        strasse: document.getElementById('adr')?.value,
-        email: document.getElementById('mail')?.value,
-        iban: document.getElementById('iban')?.value,
-        beitragsart: document.getElementById('klasse')?.value,
-        nachricht: document.getElementById('msg')?.value
-    }]);
-    location.reload();
+async function submitMsg() {
+    const m = document.getElementById('msg').value;
+    if(!m) return;
+    await supabaseClient.from('anfragen').insert([{ typ: 'Mitteilung', nachricht: m }]);
+    showHome();
 }
 
-// Initialisierung
 showHome();
 </script>
 </body>
