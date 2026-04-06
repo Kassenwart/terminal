@@ -55,7 +55,6 @@ function showHome() {
     `;
 }
 
-// --- SUCHE (Arbeitsdienst dezent untergeordnet) ---
 function viewMemberSearch(mode) {
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase flex items-center gap-1">← Zurück</button>
@@ -63,7 +62,7 @@ function viewMemberSearch(mode) {
         
         <div id="selected-list" class="flex flex-wrap gap-2 mb-4"></div>
         
-        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name suchen..." class="input-field text-xl mb-4 border-blue-50 focus:border-blue-500 shadow-sm">
+        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name oder Nr. eingeben..." class="input-field text-xl mb-4 border-blue-50 focus:border-blue-500 shadow-sm">
         
         <div id="search-results" class="space-y-2 mb-6"></div>
 
@@ -87,8 +86,22 @@ function startArbeitsdienst() {
 }
 
 async function runSearch(q, mode) {
-    if(q.length < 2) return;
-    const { data } = await supabaseClient.from('mitglieder').select('*').or(`mitgliedsnummer.eq.${q},vorname.ilike.%${q}%,nachname.ilike.%${q}%`).limit(6);
+    if(q.length < 1) {
+        document.getElementById('search-results').innerHTML = "";
+        return;
+    }
+    
+    // Suche in Mitgliedsnummer, Vorname und Nachname
+    const { data, error } = await supabaseClient.from('mitglieder')
+        .select('*')
+        .or(`mitgliedsnummer.ilike.%${q}%,vorname.ilike.%${q}%,nachname.ilike.%${q}%`)
+        .limit(6);
+
+    if(error) {
+        console.error("Suche fehlgeschlagen:", error);
+        return;
+    }
+
     document.getElementById('search-results').innerHTML = data.map(m => `
         <button onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')}, '${mode}')" class="w-full p-4 bg-slate-50 border rounded-2xl flex justify-between items-center font-bold uppercase text-[11px] active-scale">
             <span>${m.vorname} ${m.nachname_initial || ''} <span class="text-slate-400 font-normal ml-1">(${m.mitgliedsnummer})</span></span>
@@ -98,8 +111,10 @@ async function runSearch(q, mode) {
 }
 
 function selectMember(m, mode) {
-    if(mode === 'book') { currentMember = m; viewBooking(); }
-    else {
+    if(mode === 'book') { 
+        currentMember = m; 
+        viewBooking(); 
+    } else {
         if(!settlementMembers.find(sm => sm.id === m.id)) {
             settlementMembers.push(m);
             document.getElementById('mSearch').value = "";
@@ -184,7 +199,7 @@ async function saveBooking() {
             zahlungsart: isArbeitsdienst ? 'Arbeitsdienst' : null
         }]);
     }
-    showHome();
+    location.reload();
 }
 
 async function viewSettlement() {
@@ -210,7 +225,7 @@ async function viewSettlement() {
 async function payAll(art) {
     const ids = settlementMembers.map(m => m.id);
     await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).in('mitglied_id', ids).eq('bezahlt', false);
-    showHome();
+    location.reload();
 }
 
 function viewMessage() {
@@ -226,7 +241,7 @@ async function submitMsg() {
     const m = document.getElementById('msg').value;
     if(!m) return;
     await supabaseClient.from('anfragen').insert([{ typ: 'Mitteilung', nachricht: m }]);
-    showHome();
+    location.reload();
 }
 
 showHome();
