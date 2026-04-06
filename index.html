@@ -28,8 +28,7 @@
         <img src="Vereins-Logo.png" class="h-24 cursor-pointer active-scale" onclick="location.reload()">
     </div>
 
-    <div id="view" class="flex-grow overflow-y-auto p-6 pt-0">
-        </div>
+    <div id="view" class="flex-grow overflow-y-auto p-6 pt-0"></div>
 </div>
 
 <script>
@@ -59,12 +58,10 @@ function viewMemberSearch(mode) {
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase flex items-center gap-1">← Zurück</button>
         <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase tracking-tight">${mode === 'pay' ? 'Abrechnung wählen' : 'Wer bucht gerade?'}</h2>
-        
         <div id="selected-list" class="flex flex-wrap gap-2 mb-4"></div>
-        
-        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name oder Nr. eingeben..." class="input-field text-xl mb-4 border-blue-50 focus:border-blue-500 shadow-sm">
-        
+        <input type="text" id="mSearch" oninput="runSearch(this.value, '${mode}')" placeholder="Name oder Nr. eingeben..." class="input-field text-xl mb-4 border-blue-50 shadow-sm">
         <div id="search-results" class="space-y-2 mb-6"></div>
+        <div id="error-log" class="text-red-500 text-[10px] mb-4"></div>
 
         ${mode === 'book' ? `
             <div class="pt-6 border-t border-slate-100 mt-4">
@@ -73,32 +70,24 @@ function viewMemberSearch(mode) {
                 </button>
             </div>
         ` : ''}
-        
         ${mode === 'pay' ? `<button id="btn-final-pay" onclick="viewSettlement()" class="hidden w-full bg-green-600 text-white p-5 rounded-2xl font-black uppercase mt-6 shadow-xl active-scale">Auswahl abrechnen</button>` : ''}
     `;
     setTimeout(() => document.getElementById('mSearch').focus(), 100);
 }
 
-function startArbeitsdienst() {
-    isArbeitsdienst = true;
-    currentMember = { id: '00000000-0000-0000-0000-000000000000', vorname: 'Arbeitsdienst' };
-    viewBooking();
-}
-
 async function runSearch(q, mode) {
-    if(q.length < 1) {
-        document.getElementById('search-results').innerHTML = "";
-        return;
-    }
+    const errorLog = document.getElementById('error-log');
+    errorLog.innerText = "";
+    if(q.length < 1) { document.getElementById('search-results').innerHTML = ""; return; }
     
-    // Suche in Mitgliedsnummer, Vorname und Nachname
+    // Einfachere Abfrage, um Spaltenfehler zu vermeiden
     const { data, error } = await supabaseClient.from('mitglieder')
         .select('*')
-        .or(`mitgliedsnummer.ilike.%${q}%,vorname.ilike.%${q}%,nachname.ilike.%${q}%`)
+        .or(`mitgliedsnummer.ilike.%${q}%,vorname.ilike.%${q}%`)
         .limit(6);
 
     if(error) {
-        console.error("Suche fehlgeschlagen:", error);
+        errorLog.innerText = "Fehler: " + error.message;
         return;
     }
 
@@ -111,10 +100,8 @@ async function runSearch(q, mode) {
 }
 
 function selectMember(m, mode) {
-    if(mode === 'book') { 
-        currentMember = m; 
-        viewBooking(); 
-    } else {
+    if(mode === 'book') { currentMember = m; viewBooking(); }
+    else {
         if(!settlementMembers.find(sm => sm.id === m.id)) {
             settlementMembers.push(m);
             document.getElementById('mSearch').value = "";
@@ -136,24 +123,25 @@ function updateSelectedList() {
     if(btn) btn.classList.toggle('hidden', settlementMembers.length === 0);
 }
 
+function startArbeitsdienst() {
+    isArbeitsdienst = true;
+    currentMember = { id: '00000000-0000-0000-0000-000000000000', vorname: 'Arbeitsdienst' };
+    viewBooking();
+}
+
 async function viewBooking() {
     const { data: prods } = await supabaseClient.from('produkte').select('*').order('preis', {ascending: true});
     document.getElementById('view').innerHTML = `
         <div class="flex justify-between items-end mb-6">
-            <div>
-                <h2 class="font-black uppercase text-[#0f2d52] text-2xl">Produkte</h2>
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Konto: ${currentMember.vorname}</div>
-            </div>
+            <div><h2 class="font-black uppercase text-[#0f2d52] text-2xl">Produkte</h2><div class="text-[10px] font-bold text-slate-400 uppercase">Konto: ${currentMember.vorname}</div></div>
             ${isArbeitsdienst ? '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg font-black text-[10px] uppercase">Arbeitsdienst</span>' : ''}
         </div>
-        <div class="grid grid-cols-2 gap-3 mb-8">
-            ${prods.map(p => `
-                <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-5 rounded-[2rem] border-2 border-transparent flex flex-col items-center shadow-sm">
-                    <span class="text-4xl mb-2">${p.emoji}</span>
-                    <span class="font-bold text-[10px] uppercase text-slate-500 tracking-tighter">${p.name}</span>
-                    <span class="font-black text-blue-900">${isArbeitsdienst ? '0.00' : p.preis.toFixed(2)}€</span>
-                </button>
-            `).join('')}
+        <div class="grid grid-cols-2 gap-3 mb-8">${prods.map(p => `
+            <button onclick="addToCart('${p.name}', ${p.preis}, '${p.emoji}')" class="active-scale bg-slate-50 p-5 rounded-[2rem] border-2 border-transparent flex flex-col items-center shadow-sm">
+                <span class="text-4xl mb-2">${p.emoji}</span>
+                <span class="font-bold text-[10px] uppercase text-slate-500">${p.name}</span>
+                <span class="font-black text-blue-900">${isArbeitsdienst ? '0.00' : p.preis.toFixed(2)}€</span>
+            </button>`).join('')}
         </div>
         <div id="cart-box" class="hidden sticky bottom-0 bg-white pt-4 border-t-2 border-slate-100 pb-2">
             <div id="cart-items" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
@@ -179,8 +167,7 @@ function renderCart() {
                 <span class="font-black text-lg w-6 text-center ${i.count < 0 ? 'negative-count' : 'text-slate-700'}">${i.count}</span>
                 <button onclick="changeQty(${idx},1)" class="w-10 h-10 bg-blue-700 text-white rounded-full text-2xl font-bold shadow-sm active-scale">+</button>
             </div>
-        </div>
-    `).join('');
+        </div>`).join('');
 }
 
 function changeQty(idx, d) {
@@ -192,56 +179,50 @@ function changeQty(idx, d) {
 async function saveBooking() {
     for(const i of cart) {
         await supabaseClient.from('buchungen').insert([{ 
-            mitglied_id: currentMember.id, 
-            artikel: i.name, 
-            preis: i.preis * i.count, 
-            bezahlt: isArbeitsdienst ? true : false,
-            zahlungsart: isArbeitsdienst ? 'Arbeitsdienst' : null
+            mitglied_id: currentMember.id, artikel: i.name, preis: i.preis * i.count, 
+            bezahlt: isArbeitsdienst ? true : false, zahlungsart: isArbeitsdienst ? 'Arbeitsdienst' : null
         }]);
     }
-    location.reload();
+    showHome();
 }
 
 async function viewSettlement() {
     const ids = settlementMembers.map(m => m.id);
     const { data: open } = await supabaseClient.from('buchungen').select('*').in('mitglied_id', ids).eq('bezahlt', false);
     const sum = open.reduce((s, i) => s + i.preis, 0);
-    
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase">Zahlung fällig</h2>
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center">Zahlung</h2>
         <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] mb-8 text-center shadow-2xl">
-            <div class="text-[10px] font-bold opacity-40 uppercase tracking-widest mb-2">Offener Gesamtbetrag</div>
+            <div class="text-[10px] font-bold opacity-40 uppercase mb-2">Offener Betrag</div>
             <div class="text-5xl font-black">${sum.toFixed(2)} €</div>
         </div>
         <div class="grid grid-cols-1 gap-3">
-            <button onclick="payAll('Bar')" class="w-full p-5 bg-emerald-50 text-emerald-700 rounded-2xl font-black uppercase border-2 border-emerald-100 active-scale shadow-sm">💵 Bar in Kasse</button>
-            <button onclick="payAll('PayPal')" class="w-full p-5 bg-sky-50 text-sky-700 rounded-2xl font-black uppercase border-2 border-sky-100 active-scale shadow-sm">📱 PayPal</button>
-            <button onclick="payAll('Bank')" class="w-full p-5 bg-slate-50 text-slate-700 rounded-2xl font-black uppercase border-2 border-slate-200 active-scale shadow-sm">🏦 Überweisung</button>
-        </div>
-    `;
+            <button onclick="payAll('Bar')" class="w-full p-5 bg-emerald-50 text-emerald-700 rounded-2xl font-black uppercase border-2 active-scale">💵 Bar in Kasse</button>
+            <button onclick="payAll('PayPal')" class="w-full p-5 bg-sky-50 text-sky-700 rounded-2xl font-black uppercase border-2 active-scale">📱 PayPal</button>
+            <button onclick="payAll('Bank')" class="w-full p-5 bg-slate-50 text-slate-700 rounded-2xl font-black uppercase border-2 active-scale">🏦 Überweisung</button>
+        </div>`;
 }
 
 async function payAll(art) {
     const ids = settlementMembers.map(m => m.id);
     await supabaseClient.from('buchungen').update({ bezahlt: true, zahlungsart: art }).in('mitglied_id', ids).eq('bezahlt', false);
-    location.reload();
+    showHome();
 }
 
 function viewMessage() {
     document.getElementById('view').innerHTML = `
         <button onclick="showHome()" class="text-[10px] font-bold text-slate-400 mb-4 uppercase">← Zurück</button>
-        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center">Vorstand kontaktieren</h2>
-        <textarea id="msg" placeholder="Schreib uns hier dein Anliegen..." class="input-field h-56 mb-4 shadow-inner resize-none"></textarea>
-        <button onclick="submitMsg()" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase shadow-lg active-scale">Nachricht absenden</button>
-    `;
+        <h2 class="text-xl font-black text-[#0f2d52] mb-4 uppercase text-center">Mitteilung</h2>
+        <textarea id="msg" placeholder="Schreib uns..." class="input-field h-56 mb-4 shadow-inner resize-none"></textarea>
+        <button onclick="submitMsg()" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase active-scale">Absenden</button>`;
 }
 
 async function submitMsg() {
     const m = document.getElementById('msg').value;
     if(!m) return;
     await supabaseClient.from('anfragen').insert([{ typ: 'Mitteilung', nachricht: m }]);
-    location.reload();
+    showHome();
 }
 
 showHome();
